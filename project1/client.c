@@ -27,12 +27,12 @@ int main(int argc, char *argv[]) {
 
     // user needs to join commons
     int client_socket;
-
-    struct sockaddr_in server_addr;
     if ((client_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Error: problem creating socket");
         exit(EXIT_FAILURE);
     }
+    struct sockaddr_in server_addr;
+
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(atoi(port));
@@ -49,6 +49,8 @@ int main(int argc, char *argv[]) {
     ssize_t send_message = sendto(client_socket, &req_login, sizeof(req_login), 0,
              (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (send_message < 0) { perror("Error: problem sending message"); exit(EXIT_FAILURE);}
+
+
 //     // largest user input is for sending message - 64 Bytes
 //     char *user_input = (char *)malloc(sizeof(char) * (SAY_MAX));
 //     if (user_input == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}
@@ -81,6 +83,14 @@ int main(int argc, char *argv[]) {
 //         req->req_type = 
 //     }
 }
+
+// void setup_server_addr(struct request_login *server_addr) {
+
+// }
+
+// void setup_socket()
+
+// void join_common(client_socket, server_addr, )
 
 void prompt_user(char *user_input) {
     char c;
