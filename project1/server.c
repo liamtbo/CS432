@@ -4,6 +4,7 @@
 #include <netinet/in.h> // in_port_t and in_addr
 #include <string.h>
 #include <arpa/inet.h> // inet_pton
+#include "duckchat.h"
 
 
 int main(int argc, char *argv[]) {
@@ -32,12 +33,13 @@ int main(int argc, char *argv[]) {
     int b = bind(s, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (b < 0) { perror("Error calling bind()"); exit(EXIT_FAILURE);}
 
-    char buf[100]; int buf_len = sizeof(buf);
+    struct request_login req_login; int buf_len = sizeof(req_login);
 
     struct sockaddr_in client;
     socklen_t client_len = sizeof(client);
     while (1) {
-        int r = recvfrom(s, buf, buf_len, 0, (struct sockaddr *)&client, &client_len);
+        int r = recvfrom(s, &req_login, buf_len, 0, (struct sockaddr *)&client, &client_len);
+        printf("recieved! %s\n", req_login.req_username);
         break;
     }
 
