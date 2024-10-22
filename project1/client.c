@@ -31,24 +31,12 @@ int main(int argc, char *argv[]) {
         perror("Error: problem creating socket");
         exit(EXIT_FAILURE);
     }
+
+    // setting up server address
     struct sockaddr_in server_addr;
+    setup_server_addr(&server_addr, host_name, port);
 
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(atoi(port));
-    // converts string server ip to AF address family
-    if (inet_pton(AF_INET, host_name, &server_addr.sin_addr) < 1) {
-        perror("Error: problem converting str to net byte order");
-        exit(EXIT_FAILURE);
-    }
-
-    struct request_login req_login;
-    req_login.req_type = REQ_LOGIN;
-    strcpy(req_login.req_username, username);
-
-    ssize_t send_message = sendto(client_socket, &req_login, sizeof(req_login), 0,
-             (struct sockaddr *)&server_addr, sizeof(server_addr));
-    if (send_message < 0) { perror("Error: problem sending message"); exit(EXIT_FAILURE);}
+    login(&server_addr, username, client_socket);
 
 
 //     // largest user input is for sending message - 64 Bytes
@@ -83,14 +71,30 @@ int main(int argc, char *argv[]) {
 //         req->req_type = 
 //     }
 }
-
-// void setup_server_addr(struct request_login *server_addr) {
+// void login(struct sockaddr_in *server_addr, char *username) {
 
 // }
 
-// void setup_socket()
+void login(struct sockaddr_in *server_addr, char *username, int client_socket) {
+    struct request_login req_login;
+    req_login.req_type = REQ_LOGIN;
+    strcpy(req_login.req_username, username);
 
-// void join_common(client_socket, server_addr, )
+    ssize_t send_message = sendto(client_socket, &req_login, sizeof(req_login), 0,
+             (struct sockaddr *)server_addr, sizeof(*server_addr));
+    if (send_message < 0) { perror("Error: problem sending message"); exit(EXIT_FAILURE);}
+}
+
+void setup_server_addr(struct sockaddr_in *server_addr, char *host_name, char *port) {
+    memset(server_addr, 0, sizeof(*server_addr));
+    server_addr->sin_family = AF_INET;
+    server_addr->sin_port = htons(atoi(port));
+    // converts string server ip to AF address family
+    if (inet_pton(AF_INET, host_name, &server_addr->sin_addr) < 1) {
+        perror("Error: problem converting str to net byte order");
+        exit(EXIT_FAILURE);
+    }
+}
 
 void prompt_user(char *user_input) {
     char c;
