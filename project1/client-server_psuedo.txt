@@ -1,0 +1,31 @@
+
+client:
+    user logs in
+    user joins common
+    use select to listen on port and let the user type
+    listen on port
+    let user type
+        if response on port
+            /b user input
+            process and parse response
+            \n and reprint what use was typing
+        if user hits enter
+            say <input> to server
+
+server:
+    listen on port
+    listen:
+        cast it to request
+        check request type and recast it appropriately
+        create a map between ip/port : {username, [channels]}
+        if join channel:
+            (create) channel name and the username to it
+        if say:
+            use ip/port to find username
+            find all internet addresses of users on channel
+            send out message to all of those users
+        if loggin in:
+            if new user:
+            if old user:
+            record clients IP and Port as an identifier (maybe mapped to username)
+            add them to commons

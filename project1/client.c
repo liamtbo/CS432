@@ -37,43 +37,45 @@ int main(int argc, char *argv[]) {
     setup_server_addr(&server_addr, host_name, port);
 
     login(&server_addr, username, client_socket);
+    join_channel(&server_addr, client_socket, "Common");
 
-
-//     // largest user input is for sending message - 64 Bytes
-//     char *user_input = (char *)malloc(sizeof(char) * (SAY_MAX));
-//     if (user_input == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}
-//     prompt_user(user_input);
+    // largest user input is for sending message - 64 Bytes
+    char *user_input = (char *)malloc(sizeof(char) * (SAY_MAX));
+    if (user_input == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}
+    prompt_user(user_input);
     
-//     // parsing
-//     char **parsed_s = (char **)malloc(sizeof(char *) * 2); // 1: command, 2: arg
-//     if (parsed_s == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}
-//     for (int i=0; i<2; i++) {
-//         parsed_s[i] = (char *)malloc(sizeof(char) * CHANNEL_MAX);
-//         if (parsed_s[i] == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}        
-//     }
-//     int count = string_parser(parsed_s, user_input);
+    // parsing
+    char **parsed_s = (char **)malloc(sizeof(char *) * 2); // 1: command, 2: arg
+    if (parsed_s == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}
+    for (int i=0; i<2; i++) {
+        parsed_s[i] = (char *)malloc(sizeof(char) * CHANNEL_MAX);
+        if (parsed_s[i] == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}        
+    }
+    int count = string_parser(parsed_s, user_input);
     
-//     // creating packeged message
-//     // struct request req;
-//     // package(parsed_s, &req);
+    // creating packeged message
+    // struct request req;
+    // package(parsed_s, &req);
 
     cooked_mode();
     
     close(client_socket);
-//     // freeing
-//     free(user_input);
-//     for (int i=0; i<2; i++) {free(parsed_s[i]);}
-//     free(parsed_s);
-// }
-
-// void package(char **parsed_s, struct request *req) {
-//     if (strcmp(parsed_s[0], "/exit") == 0) {
-//         req->req_type = 
-//     }
+    // freeing
+    free(user_input);
+    for (int i=0; i<2; i++) {free(parsed_s[i]);}
+    free(parsed_s);
 }
-// void login(struct sockaddr_in *server_addr, char *username) {
 
-// }
+void join_channel(struct sockaddr_in *server_addr, int client_socket, char *channel) {
+    struct request_join req_join;
+    req_join.req_type = REQ_JOIN;
+    strcpy(req_join.req_channel, channel);
+
+    ssize_t send_message = sendto(client_socket, &req_join, sizeof(req_join), 0,
+             (struct sockaddr *)server_addr, sizeof(*server_addr));
+    if (send_message < 0) { perror("Error: problem sending join"); exit(EXIT_FAILURE);}
+
+}
 
 void login(struct sockaddr_in *server_addr, char *username, int client_socket) {
     struct request_login req_login;
@@ -82,7 +84,7 @@ void login(struct sockaddr_in *server_addr, char *username, int client_socket) {
 
     ssize_t send_message = sendto(client_socket, &req_login, sizeof(req_login), 0,
              (struct sockaddr *)server_addr, sizeof(*server_addr));
-    if (send_message < 0) { perror("Error: problem sending message"); exit(EXIT_FAILURE);}
+    if (send_message < 0) { perror("Error: problem sending login"); exit(EXIT_FAILURE);}
 }
 
 void setup_server_addr(struct sockaddr_in *server_addr, char *host_name, char *port) {

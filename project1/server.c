@@ -33,7 +33,8 @@ int main(int argc, char *argv[]) {
     int b = bind(s, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (b < 0) { perror("Error calling bind()"); exit(EXIT_FAILURE);}
 
-    struct request_login req_login; int buf_len = sizeof(req_login);
+    struct request_login req_login; 
+    int buf_len = sizeof(req_login);
 
     struct sockaddr_in client;
     socklen_t client_len = sizeof(client);
@@ -42,5 +43,4 @@ int main(int argc, char *argv[]) {
         printf("recieved! %s\n", req_login.req_username);
         break;
     }
-
 }
