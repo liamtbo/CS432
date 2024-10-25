@@ -83,6 +83,7 @@ int main(int argc, char *argv[]) {
                 // save channel to users channels
                 join_channel(&server_addr, client_socket, parsed_s[1],
                              users_channels, &channel_count, active_channel);
+                printf("active channel: %s\n", active_channel);  
             } else if (strcmp(command, "/leave") == 0) {
                 printf("leaving %s...\n", parsed_s[1]);
                 remove_string(users_channels, parsed_s[1], channel_count);
@@ -99,8 +100,9 @@ int main(int argc, char *argv[]) {
             } else if (strcmp(command, "/who") == 0) { // TODO, needs info from server
                 printf("works");
             } else if (strcmp(command, "/switch") == 0) {
-                printf("works");
-            } // this is say command
+                strcpy(active_channel, parsed_s[1]);
+                printf("active channel: %s\n", active_channel);  
+            } 
             else {
                 printf("%s is an invalid command. Please enter one of the following: \
                         \n\t/exit\n\t/join\n\t/leave\n\t/list\n\t/who\n\t/switch\n", parsed_s[1]);
@@ -111,17 +113,9 @@ int main(int argc, char *argv[]) {
                 printf("No active channel: Please join or switch to a channel\n");
             } else {
                 // TODO: add say command structure
+                say_command(&server_addr, client_socket, active_channel, parsed_s[1]);
             }
         }
-
-        // TODO: delete test
-        // for (int i = 0; i < channel_count; i++)
-        // {
-        //     if (strcmp(users_channels[i], " ") != 0)
-        //         printf("users channels: %s\n", users_channels[i]);     
-        // }
-        printf("active channel: %s\n", active_channel);  
-        
     }
 
     cooked_mode();
@@ -131,6 +125,18 @@ int main(int argc, char *argv[]) {
     free(user_input);
     for (int i=0; i<2; i++) {free(parsed_s[i]);}
     free(parsed_s);
+}
+
+void say_command(struct sockaddr_in *server_addr, int client_socket,  
+                  char *active_channel, char *message) {
+    struct request_say req_say;
+    req_say.req_type = REQ_SAY;
+    strcpy(req_say.req_channel, active_channel);
+    strcpy(req_say.req_text, message);
+
+    ssize_t send_message = sendto(client_socket, &req_say, sizeof(req_say), 0,
+             (struct sockaddr *)server_addr, sizeof(*server_addr));
+    if (send_message < 0) { perror("Error: problem sending say"); exit(EXIT_FAILURE);}
 }
 
 // logout user and exit the client software
@@ -173,15 +179,6 @@ void leave_channel(struct sockaddr_in *server_addr, int client_socket, char *cha
             (struct sockaddr *)server_addr, sizeof(*server_addr));
     if (send_message < 0) { perror("Error: problem sending join"); exit(EXIT_FAILURE);}
 }
-
-// list the names of all channels
-
-
-// list the users who are on the named channel
-
-
-// switch to an existing named channel that user has already joined
-
 
 // login to channel
 void login(struct sockaddr_in *server_addr, char *username, int client_socket) {
