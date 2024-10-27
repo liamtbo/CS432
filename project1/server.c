@@ -57,15 +57,10 @@ int main(int argc, char *argv[]) {
         char ip_str[INET_ADDRSTRLEN]; // Buffer for the IP string
         // converts IP from binary form (net byte order) to readable string
         inet_ntop(AF_INET, &client.sin_addr, ip_str, sizeof(ip_str));
-        // printf("Client IP: %s\n", ip_str);
-        // printf("port: %d\n", ntohs(client.sin_port));
-
-
-        /*where im at todo: when 2 clients are connected, and one leaves we seg*/
-
 
         struct request *req = (struct request *)buffer;  // Initial cast to check req_type
         printf("req: %d\n", req->req_type);
+
         if (req->req_type == REQ_LOGIN) { // TODO , make sure username isn't in use
             printf("login\n");
             struct request_login *req_login = (struct request_login *)req; 
@@ -75,10 +70,14 @@ int main(int argc, char *argv[]) {
         else if (req->req_type == REQ_LOGOUT) {
             printf("logout\n");
             struct request_logout *req_logout = (struct request_logout *)req;
+            // think seg fault error is coming from here
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
+            if (user == NULL) {
+                printf("user == null\n");
+            }
             Channel *current = channel_list.head;
-            printf("seg?\n");
             while (current) {
+                // printf("username in main: %s\n", user->username);
                 remove_user_from_channel(current, user->username);
                 current = current->next;
             }
@@ -97,8 +96,6 @@ int main(int argc, char *argv[]) {
             else {
                 add_channel(&channel_list, req_join->req_channel);
                 specified_channel = find_channel(&channel_list, req_join->req_channel);
-                // printf("succecfulyl added channel: %s\n", channel_list.head->name);
-                // printf("channel %s list head: %s\n", specified_channel->name, specified_channel->users.head);
                 add_user_to_channel(specified_channel, ip_str, ntohs(client.sin_port), user->username);
             }
         }
@@ -110,6 +107,13 @@ int main(int argc, char *argv[]) {
         }
 
         print_channels(&channel_list);
+        User *curr = user_list.head;
+        while (curr) {
+            printf("users in user list: %s\n", curr->username);
+            curr = curr->next;
+        }
+        // printf("does user exist in user list: %s\n", current->username);
+
         printf("-------------------------");
     }
 }
@@ -129,15 +133,18 @@ User *create_user(const char *ip, in_port_t port, const char *username) {
 // Add a user to a UserList
 void add_user(UserList *user_list, const char *ip, in_port_t port, const char *username) {
     User *new_user = create_user(ip, port, username);
-    new_user->next = user_list->head; // seg faulting here
+    new_user->next = user_list->head;
     user_list->head = new_user;
 }
 
 // Remove a user from UserList by username
 void remove_user(UserList *user_list, const char *username) {
     User *current = user_list->head, *previous = NULL;
+    // printf("current->username: %s\n", current->username);
+    // printf("username1: %s\n", username);
     while (current) {
         if (strcmp(current->username, username) == 0) {
+            // printf("seg?\n");
             if (previous) {
                 previous->next = current->next;
             } else {
@@ -146,6 +153,7 @@ void remove_user(UserList *user_list, const char *username) {
             free(current);
             return;
         }
+        // printf("seg?\n");
         previous = current;
         current = current->next;
     }
@@ -167,6 +175,7 @@ User *find_user_by_username(UserList *user_list, const char *username) {
 User *find_user_by_ip_port(UserList *user_list, const char *ip, in_port_t port) {
     User *current = user_list->head;
     while (current) {
+        // printf("does user exist in user list: %s\n", current->username);
         if (strcmp(current->ip, ip) == 0 && current->port == port) {
             return current;
         }
@@ -230,6 +239,7 @@ void add_user_to_channel(Channel *channel, const char *ip, in_port_t port, const
 
 // Remove a user from a channel
 void remove_user_from_channel(Channel *channel, const char *username) {
+    // printf("here: %s\n", channel->users.head->username);
     remove_user(&(channel->users), username);
 }
 

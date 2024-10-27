@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
             char *command = parsed_s[0];
             if (strcmp(command, "/exit") == 0) {
                 printf("exiting...\n");
-                logout(&server_addr, client_socket);
+                // logout(&server_addr, client_socket);
                 cooked_mode();
                 exit_program(&server_addr, client_socket);
             } else if (strcmp(command, "/join") == 0) {
