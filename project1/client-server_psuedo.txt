@@ -15,17 +15,43 @@ client:
 server:
     listen on port
     listen:
+
         cast it to request
         check request type and recast it appropriately
-        create a map between ip/port : {username, [channels]}
-        if join channel:
-            (create) channel name and the username to it
+        if login:
+            IPs[IP] = username
+            users_channels[IP].append(common)
+            channels[commons].append(username)
+        if logout:
+            for channel in user_channels[IP]:
+                channels[channel].remove(IP)
+            destroy IPs[IP]
+            destroy users_channels[IP]
+        if join:
+            user_channels[IP].append(channel)
+            channels[channel].append(IP) // if channel doesn't exit init it
+        if leave:
+            users_channels[IP].remove(channel)
+            channels[channel].remove(user)
+            // if channel becomes empty, delete from channels
         if say:
-            use ip/port to find username
-            find all internet addresses of users on channel
-            send out message to all of those users
-        if loggin in:
-            if new user:
-            if old user:
-            record clients IP and Port as an identifier (maybe mapped to username)
-            add them to commons
+            username <- IPs[IP]
+            for user on channels[channel]:
+                user.send_message(message)
+        if list:
+            send(users_channels[IP])
+        if who:
+            ips <- channels[channel]
+            map ips to usernames
+            send back usernames
+
+
+server structures
+    IPs[IP] -> username
+    users_channels[IP] -> [that users channels]
+    channels[channel] -> [ip1, ip2, ip3, ip4, ...]
+    what if we create one user object for ip->user and user->ip
+    and another object for channels
+    
+
+

@@ -6,7 +6,7 @@ CFLAGS=-Wall -W -g
 
 all: client server
 
-run_server: server
+run_server: clean server
 	./server localhost 5000
 
 run_client: client

@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     setup_server_addr(&server_addr, host_name, port);
 
     // user channels 
-    // TODO: need to make sure they don't put too much in - realloc
+    // TODO: this is wrong, this should all be stored in server
     int channel_count = 0;
     char **users_channels = (char **)malloc(sizeof(char *) * 64);
     if (users_channels == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}
@@ -75,6 +75,7 @@ int main(int argc, char *argv[]) {
             char *command = parsed_s[0];
             if (strcmp(command, "/exit") == 0) {
                 printf("exiting...\n");
+                logout(&server_addr, client_socket);
                 cooked_mode();
                 exit_program(&server_addr, client_socket);
             } else if (strcmp(command, "/join") == 0) {
@@ -82,7 +83,7 @@ int main(int argc, char *argv[]) {
                 // TODO: realloc if channel is full
                 // save channel to users channels
                 join_channel(&server_addr, client_socket, parsed_s[1],
-                             users_channels, &channel_count, active_channel);
+                             users_channels, &channel_count, active_channel);                
                 printf("active channel: %s\n", active_channel);  
             } else if (strcmp(command, "/leave") == 0) {
                 printf("leaving %s...\n", parsed_s[1]);
