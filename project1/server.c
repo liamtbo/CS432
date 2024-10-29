@@ -82,8 +82,8 @@ int main(int argc, char *argv[]) {
                 current = current->next;
             }
             remove_user(&user_list, user->username);
-        }
-        else if (req->req_type == REQ_JOIN) {
+        
+        } else if (req->req_type == REQ_JOIN) {
             struct request_join *req_join = (struct request_join *)req;
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
             // Channel *head_channel = channel_list.head;
@@ -98,16 +98,22 @@ int main(int argc, char *argv[]) {
                 specified_channel = find_channel(&channel_list, req_join->req_channel);
                 add_user_to_channel(specified_channel, ip_str, ntohs(client.sin_port), user->username);
             }
-            struct text txt;
-            txt.txt_type = 2;
-            int send_message = sendto(s, &txt, sizeof(txt), 0, &client, sizeof(client));
-        }
-        else if (req->req_type == REQ_LEAVE) {
+        
+        } else if (req->req_type == REQ_LEAVE) {
             struct request_leave *req_leave = (struct request_leave *)req;
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
             Channel *specified_channel = find_channel(&channel_list, req_leave->req_channel);
             remove_user_from_channel(specified_channel, user->username);
-        }
+        } else if (req->req_type == REQ_SAY) {
+            struct request_say *req_say = (struct request_say *)req;
+            User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
+            struct text_say txt_say;
+            txt_say.txt_type = 0;
+            strcpy(txt_say.txt_channel, req_say->req_channel);
+            strcpy(txt_say.txt_username, user->username);
+            strcpy(txt_say.txt_text, req_say->req_text);
+            int send_message = sendto(s, &txt_say, sizeof(txt_say), 0, &client, sizeof(client));
+        } 
         
 
 

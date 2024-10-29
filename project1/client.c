@@ -216,11 +216,9 @@ void remove_string(char **users_channels, char *channel, int channel_count) {
 void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server_addr) {
     char c;
     int count = 0;
+    user_input[0] = '\0';
     int retval;
     fd_set rfds;
-    // FD_ZERO(&rfds);
-    // FD_SET(0, &rfds);
-    // FD_SET(client_socket, &rfds);
     printf("> "); fflush(stdout);
     char buffer[sizeof(struct text_say)]; 
     socklen_t buf_size = sizeof(buffer);
@@ -233,10 +231,16 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
         retval = select(client_socket + 1, &rfds, NULL, NULL, NULL);
         // if theres an input from the user into stdin
         if (FD_ISSET(client_socket, &rfds)) {
+            if (strlen(user_input) > 0) {
+                for (int i = 0; i < count + 2; i++) { printf("\b"); } // +2 for >
+            } else {
+                for (int i = 0; i < 2; i++) { printf("\b"); }
+            }
             int bytes_received = recvfrom(client_socket, buffer, sizeof(buffer), 0, 
                                     (struct sockaddr *)server_addr, &buf_size);
             struct text *txt = (struct text *)buffer;
-            printf("message received: %d\n", txt->txt_type);
+            printf("message received: %d\n", txt->txt_type); fflush(stdout);
+            printf("> %s", user_input); fflush(stdout);
         }
         if (FD_ISSET(0, &rfds)) {
             read(STDIN_FILENO, &c, 1);
