@@ -98,6 +98,9 @@ int main(int argc, char *argv[]) {
                 specified_channel = find_channel(&channel_list, req_join->req_channel);
                 add_user_to_channel(specified_channel, ip_str, ntohs(client.sin_port), user->username);
             }
+            struct text txt;
+            txt.txt_type = 2;
+            int send_message = sendto(s, &txt, sizeof(txt), 0, &client, sizeof(client));
         }
         else if (req->req_type == REQ_LEAVE) {
             struct request_leave *req_leave = (struct request_leave *)req;
@@ -105,6 +108,8 @@ int main(int argc, char *argv[]) {
             Channel *specified_channel = find_channel(&channel_list, req_leave->req_channel);
             remove_user_from_channel(specified_channel, user->username);
         }
+        
+
 
         print_channels(&channel_list);
         User *curr = user_list.head;

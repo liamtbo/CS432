@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
     }
 
     while(1) {
-        prompt_user(user_input);
+        prompt_user(user_input, client_socket, &server_addr);
 
         // if there was a command given, command_exists == 1
         int command_exists = string_parser(parsed_s, user_input);
@@ -213,19 +213,31 @@ void remove_string(char **users_channels, char *channel, int channel_count) {
     }
 }
 
-void prompt_user(char *user_input) {
+void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server_addr) {
     char c;
     int count = 0;
     int retval;
     fd_set rfds;
-    FD_ZERO(&rfds);
-    FD_SET(0, &rfds);
+    // FD_ZERO(&rfds);
+    // FD_SET(0, &rfds);
+    // FD_SET(client_socket, &rfds);
     printf("> "); fflush(stdout);
-    retval = select(1, &rfds, NULL, NULL, NULL);
+    char buffer[sizeof(struct text_say)]; 
+    socklen_t buf_size = sizeof(buffer);
     if (retval == -1)
         perror("select()");
     while (1) {
+        FD_ZERO(&rfds);
+        FD_SET(0, &rfds);
+        FD_SET(client_socket, &rfds);
+        retval = select(client_socket + 1, &rfds, NULL, NULL, NULL);
         // if theres an input from the user into stdin
+        if (FD_ISSET(client_socket, &rfds)) {
+            int bytes_received = recvfrom(client_socket, buffer, sizeof(buffer), 0, 
+                                    (struct sockaddr *)server_addr, &buf_size);
+            struct text *txt = (struct text *)buffer;
+            printf("message received: %d\n", txt->txt_type);
+        }
         if (FD_ISSET(0, &rfds)) {
             read(STDIN_FILENO, &c, 1);
             if (c == '\b' || c == 0x7F) { // backspace key generate diff controlchars depending on terminal
