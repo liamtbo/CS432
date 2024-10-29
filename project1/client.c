@@ -68,10 +68,10 @@ int main(int argc, char *argv[]) {
     while(1) {
         prompt_user(user_input, client_socket, &server_addr);
 
-        // if there was a command given, command_exists == 1
-        int command_exists = string_parser(parsed_s, user_input);
-
-        if (command_exists) {
+        // if there was a command given, command_exists > 0, else 0
+        int argument = string_parser(parsed_s, user_input);
+        printf("argument: %d\n", argument);
+        if (argument > 0) {
             char *command = parsed_s[0];
             if (strcmp(command, "/exit") == 0) {
                 printf("exiting...\n");
@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
                 printf("No active channel: Please join or switch to a channel\n");
             } else {
                 // TODO: add say command structure
-                say_command(&server_addr, client_socket, active_channel, parsed_s[1]);
+                say_command(&server_addr, client_socket, active_channel, user_input);
             }
         }
     }
@@ -133,6 +133,7 @@ void say_command(struct sockaddr_in *server_addr, int client_socket,
     struct request_say req_say;
     req_say.req_type = REQ_SAY;
     strcpy(req_say.req_channel, active_channel);
+    // printf("say_command():message: %s\n", message);
     strcpy(req_say.req_text, message);
 
     ssize_t send_message = sendto(client_socket, &req_say, sizeof(req_say), 0,
@@ -238,8 +239,15 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
             }
             int bytes_received = recvfrom(client_socket, buffer, sizeof(buffer), 0, 
                                     (struct sockaddr *)server_addr, &buf_size);
+            buffer[bytes_received] = '\0';
             struct text *txt = (struct text *)buffer;
             printf("message received: %d\n", txt->txt_type); fflush(stdout);
+            if (txt->txt_type == 0) {
+                struct text_say *txt_say = (struct text_say *)txt;
+                printf("message username: %s\n", txt_say->txt_username);
+                printf("message channel: %s\n", txt_say->txt_channel);
+                printf("message sent: %s\n", txt_say->txt_text); fflush(stdout);
+            }
             printf("> %s", user_input); fflush(stdout);
         }
         if (FD_ISSET(0, &rfds)) {
@@ -301,7 +309,10 @@ int string_parser(char **parsed_s, char*raw_s) {
     // printf("token: %s\n", token); fflush(stdout);
     if (token != NULL) {
         // count ++;
+        // printf("string_parser():token: %s\n", token);
         strcpy(parsed_s[1], token); // here
     }
+    printf("string_parser():token: %s\n", token);
+
     return count;
 }

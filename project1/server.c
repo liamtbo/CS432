@@ -50,9 +50,8 @@ int main(int argc, char *argv[]) {
     add_channel(&channel_list, "Common");
 
     while (1) {
-        int r = recvfrom(s, buffer, sizeof(buffer), 0, (struct sockaddr *)&client, &client_len);
-        // struct sockaddr_in *client_sender = (struct sockaddr_in *)&client;
-
+        int bytes_returned = recvfrom(s, buffer, sizeof(buffer), 0, (struct sockaddr *)&client, &client_len);
+        if (bytes_returned > 0) {buffer[bytes_returned] = '\0';}
         // Print the IP address
         char ip_str[INET_ADDRSTRLEN]; // Buffer for the IP string
         // converts IP from binary form (net byte order) to readable string
@@ -112,6 +111,8 @@ int main(int argc, char *argv[]) {
             strcpy(txt_say.txt_channel, req_say->req_channel);
             strcpy(txt_say.txt_username, user->username);
             strcpy(txt_say.txt_text, req_say->req_text);
+            printf("req_say->req_text: %s\n", req_say->req_text);
+            printf("txt_say.txt_text: %s\n", txt_say.txt_text);
             int send_message = sendto(s, &txt_say, sizeof(txt_say), 0, &client, sizeof(client));
         } 
         
