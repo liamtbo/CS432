@@ -70,7 +70,6 @@ int main(int argc, char *argv[]) {
 
         // if there was a command given, command_exists > 0, else 0
         int argument = string_parser(parsed_s, user_input);
-        printf("argument: %d\n", argument);
         if (argument > 0) {
             char *command = parsed_s[0];
             if (strcmp(command, "/exit") == 0) {
@@ -109,7 +108,7 @@ int main(int argc, char *argv[]) {
                         \n\t/exit\n\t/join\n\t/leave\n\t/list\n\t/who\n\t/switch\n", parsed_s[1]);
             }
         } else {
-            printf("say command\n");
+            // printf("say command\n");
             if (strcmp(active_channel, "None") == 0) {
                 printf("No active channel: Please join or switch to a channel\n");
             } else {
@@ -241,12 +240,14 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
                                     (struct sockaddr *)server_addr, &buf_size);
             buffer[bytes_received] = '\0';
             struct text *txt = (struct text *)buffer;
-            printf("message received: %d\n", txt->txt_type); fflush(stdout);
+            // printf("message received: %d\n", txt->txt_type); fflush(stdout);
             if (txt->txt_type == 0) {
                 struct text_say *txt_say = (struct text_say *)txt;
-                printf("message username: %s\n", txt_say->txt_username);
-                printf("message channel: %s\n", txt_say->txt_channel);
-                printf("message sent: %s\n", txt_say->txt_text); fflush(stdout);
+                // printf("message username: %s\n", txt_say->txt_username);
+                // printf("message channel: %s\n", txt_say->txt_channel);
+                // printf("message sent: %s\n", txt_say->txt_text); fflush(stdout);
+                printf("[%s][%s]: %s\n", txt_say->txt_channel, txt_say->txt_username, txt_say->txt_text);
+                fflush(stdout);
             }
             printf("> %s", user_input); fflush(stdout);
         }
@@ -309,10 +310,8 @@ int string_parser(char **parsed_s, char*raw_s) {
     // printf("token: %s\n", token); fflush(stdout);
     if (token != NULL) {
         // count ++;
-        // printf("string_parser():token: %s\n", token);
         strcpy(parsed_s[1], token); // here
     }
-    printf("string_parser():token: %s\n", token);
 
     return count;
 }

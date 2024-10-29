@@ -111,9 +111,26 @@ int main(int argc, char *argv[]) {
             strcpy(txt_say.txt_channel, req_say->req_channel);
             strcpy(txt_say.txt_username, user->username);
             strcpy(txt_say.txt_text, req_say->req_text);
-            printf("req_say->req_text: %s\n", req_say->req_text);
-            printf("txt_say.txt_text: %s\n", txt_say.txt_text);
-            int send_message = sendto(s, &txt_say, sizeof(txt_say), 0, &client, sizeof(client));
+            // find channel user list
+            // for each user in channel:
+                // get port and IP
+                // update client addr_in object
+                // send out packet to them
+            // TODO working on this
+            Channel *specified_channel = find_channel(&channel_list, req_say->req_channel);
+            UserList channels_users = specified_channel->users;
+            User *current_user = channels_users.head;
+            while (current_user) {
+                client.sin_port = htons(current_user->port);
+                // converts IPV4 from text to binary form
+
+                if (inet_pton(AF_INET, current_user->ip, &(client.sin_addr)) < 1) {
+                    printf("Error: problem converting str to net byte order"), fflush(stdout);
+                    exit(EXIT_FAILURE);
+                }
+                int send_message = sendto(s, &txt_say, sizeof(txt_say), 0, &client, sizeof(client));
+                current_user = current_user->next;
+            }
         } 
         
 
