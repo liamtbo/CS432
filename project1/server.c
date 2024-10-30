@@ -11,6 +11,11 @@
 
 
 int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        printf("error: format is ./server <hostname> <port>");
+        exit(EXIT_FAILURE);
+    }
+
     char *host_name = argv[1];
     char *port = argv[2];
 
@@ -69,7 +74,7 @@ int main(int argc, char *argv[]) {
         } 
         else if (req->req_type == REQ_LOGOUT) {
             printf("logout\n");
-            struct request_logout *req_logout = (struct request_logout *)req;
+            // struct request_logout *req_logout = (struct request_logout *)req;
             // think seg fault error is coming from here
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
             if (user == NULL) {
@@ -123,18 +128,20 @@ int main(int argc, char *argv[]) {
             while (current_user) {
                 client.sin_port = htons(current_user->port);
                 // converts IPV4 from text to binary form
-
                 if (inet_pton(AF_INET, current_user->ip, &(client.sin_addr)) < 1) {
                     printf("Error: problem converting str to net byte order"), fflush(stdout);
                     exit(EXIT_FAILURE);
                 }
-                int send_message = sendto(s, &txt_say, sizeof(txt_say), 0, &client, sizeof(client));
+                if (sendto(s, &txt_say, sizeof(txt_say), 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
+                    perror("sendto error");
+                    exit(EXIT_FAILURE);
+                }
                 current_user = current_user->next;
             }
         } else if (req->req_type == REQ_LIST) {
             // send packet one at a time
             // printf("req for list\n");
-            struct request_list *req_list = (struct request_list *)req;
+            // struct request_list *req_list = (struct request_list *)req;
             struct text_list txt_list;
             txt_list.txt_type = TXT_LIST;
             txt_list.txt_nchannels = channel_list.count;
@@ -143,7 +150,10 @@ int main(int argc, char *argv[]) {
             while (current_channel) {
                 strcpy(txt_list.txt_channels, current_channel->name);
                 // printf("channels sent: %s\n", current_channel->name);
-                int send_message = sendto(s, &txt_list, sizeof(txt_list), 0, &client, sizeof(client));
+                if (sendto(s, &txt_list, sizeof(txt_list), 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
+                    perror("sendto() error");
+                    exit(EXIT_FAILURE);
+                }
                 current_channel = current_channel->next;
             }
         }
@@ -158,7 +168,10 @@ int main(int argc, char *argv[]) {
             User *current_user = specified_channel->users.head;
             while (current_user) {
                 strcpy(txt_who.us_username, current_user->username);
-                int send_message = sendto(s, &txt_who, sizeof(txt_who), 0, &client, sizeof(client));
+                if (sendto(s, &txt_who, sizeof(txt_who), 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
+                    perror("sendto() error");
+                    exit(EXIT_FAILURE);
+                };
                 current_user = current_user->next;
             }
         }

@@ -41,17 +41,10 @@ int main(int argc, char *argv[]) {
     // user channels 
     // TODO: this is wrong, this should all be stored in server
     int channel_count = 0;
-    char **users_channels = (char **)malloc(sizeof(char *) * 64);
-    if (users_channels == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}
-    for (int i = 0; i < 32; i++) {
-        users_channels[i] = (char *)malloc(sizeof(char) * 128);
-        if (users_channels[i] == NULL) {printf("mem alloc failed\n"); exit(EXIT_FAILURE);}
-    }
     char active_channel[128];
 
     login(&server_addr, username, client_socket);
-    join_channel(&server_addr, client_socket, "Common", users_channels, 
-                &channel_count, active_channel);
+    join_channel(&server_addr, client_socket, "Common", &channel_count, active_channel);
 
     // largest user input is for sending message - 64 Bytes
     char *user_input = (char *)malloc(sizeof(char) * (USER_INPUT_MAX)); // TODO: needs to be bigger or guardian code
@@ -81,12 +74,10 @@ int main(int argc, char *argv[]) {
                 printf("joining %s...\n", parsed_s[1]);
                 // TODO: realloc if channel is full
                 // save channel to users channels
-                join_channel(&server_addr, client_socket, parsed_s[1],
-                             users_channels, &channel_count, active_channel);                
+                join_channel(&server_addr, client_socket, parsed_s[1], &channel_count, active_channel);                
                 printf("active channel: %s\n", active_channel);  
             } else if (strcmp(command, "/leave") == 0) {
                 printf("leaving %s...\n", parsed_s[1]);
-                remove_string(users_channels, parsed_s[1], channel_count);
                 leave_channel(&server_addr, client_socket, parsed_s[1]);
                 // is user left active channel
                 if (strcmp(parsed_s[1], active_channel) == 0) {
@@ -154,7 +145,7 @@ void exit_program(struct sockaddr_in *server_addr, int client_socket) {
 
 // joins named channel, creating the channel if it does not exist
 void join_channel(struct sockaddr_in *server_addr, int client_socket, 
-                  char *channel, char **users_channels, int *channel_count, 
+                  char *channel, int *channel_count, 
                   char *active_channel) {
     if (strlen(channel) > 127) { // 127 bc of null character
         printf("Failed to add: Please keep channel name under 127 chars\n"); fflush(stdout);
@@ -167,7 +158,6 @@ void join_channel(struct sockaddr_in *server_addr, int client_socket,
 
     // add in new channel to users list of channels
     strcpy(active_channel, channel);
-    strcpy(users_channels[*channel_count], channel);
     (*channel_count)++;
 
     ssize_t send_message = sendto(client_socket, &req_join, sizeof(req_join), 0,
@@ -207,33 +197,25 @@ void logout(struct sockaddr_in *server_addr, int client_socket) {
     if (send_message < 0) { perror("Error: problem sending logout"); exit(EXIT_FAILURE);}
 }
 
-// if removed, add NULL to spot, dont decrement, realloc if adding is larger then malloc'd
-void remove_string(char **users_channels, char *channel, int channel_count) {
-    int i;
-    for (i = 0; i < channel_count; i++) {
-        if (strcmp(users_channels[i], channel) == 0) {
-            strcpy(users_channels[i], " ");
-            break;
-        }
-    }
-}
-
 void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server_addr) {
     char c;
     int count = 0;
     user_input[0] = '\0';
-    int retval;
     fd_set rfds;
+    // int retval;
     printf("> "); fflush(stdout);
     char buffer[sizeof(struct text_say)]; 
     socklen_t buf_size = sizeof(buffer);
-    if (retval == -1)
-        perror("select()");
+
     while (1) {
         FD_ZERO(&rfds);
         FD_SET(0, &rfds);
         FD_SET(client_socket, &rfds);
-        retval = select(client_socket + 1, &rfds, NULL, NULL, NULL);
+        if (select(client_socket + 1, &rfds, NULL, NULL, NULL) < 0) {
+            perror("select() failed\n");
+            cooked_mode();
+            exit_program(&server_addr, client_socket);
+        }
         // if theres an input from the user into stdin
         if (FD_ISSET(client_socket, &rfds)) {
             if (strlen(user_input) > 0) {
