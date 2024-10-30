@@ -98,7 +98,12 @@ int main(int argc, char *argv[]) {
                 ssize_t send_message = sendto(client_socket, &req_list, sizeof(req_list), 0,
                         (struct sockaddr *)&server_addr, sizeof(server_addr));
             } else if (strcmp(command, "/who") == 0) { // TODO, needs info from server
-                printf("works");
+                printf("works\n");
+                struct request_who req_who;
+                req_who.req_type = REQ_WHO;
+                strcpy(req_who.req_channel, parsed_s[1]);
+                ssize_t send_message = sendto(client_socket, &req_who, sizeof(req_who), 0,
+                        (struct sockaddr *)&server_addr, sizeof(server_addr));
             } else if (strcmp(command, "/switch") == 0) {
                 strcpy(active_channel, parsed_s[1]);
                 printf("active channel: %s\n", active_channel);  
@@ -248,7 +253,8 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
             }
             else if (txt->txt_type == TXT_LIST) {
                 struct text_list *txt_list = (struct text_list *)txt;
-                char list_buf[32];
+                // char list_buf[32];
+                char list_buf[sizeof(struct text_list)];
                 printf("Channels List:\n"); fflush(stdout);
                 printf("\t%s\n", txt_list->txt_channels);
                 for (int i = 0; i < txt_list->txt_nchannels-1; i++) {
@@ -256,6 +262,18 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
                         (struct sockaddr *)server_addr, &buf_size);
                     txt_list = (struct text_list *)list_buf;
                     printf("\t%s\n", txt_list->txt_channels); fflush(stdout);
+                }
+            }
+            else if (txt->txt_type == TXT_WHO) {
+                struct text_who *txt_who = (struct text_who *)txt;
+                char who_buf[sizeof(*txt_who)];
+                printf("Who List:\n"); fflush(stdout);
+                printf("\t%s\n", txt_who->us_username); // todo how is this getting info in txt_list too
+                for (int i = 0; i < txt_who->txt_nusernames-1; i++) {
+                    bytes_received = recvfrom(client_socket, who_buf, sizeof(who_buf), 0, 
+                        (struct sockaddr *)server_addr, &buf_size);
+                    txt_who = (struct text_who *)who_buf;
+                    printf("\t%s\n", txt_who->us_username); fflush(stdout);
                 }
             }
             printf("> %s", user_input); fflush(stdout);

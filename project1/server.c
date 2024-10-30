@@ -91,6 +91,7 @@ int main(int argc, char *argv[]) {
             // if channel found
             if (specified_channel) {
                 add_user_to_channel(specified_channel, ip_str, ntohs(client.sin_port), user->username);
+                specified_channel->count += 1;
             }
             // if channel not found
             else {
@@ -98,6 +99,7 @@ int main(int argc, char *argv[]) {
                 specified_channel = find_channel(&channel_list, req_join->req_channel);
                 add_user_to_channel(specified_channel, ip_str, ntohs(client.sin_port), user->username);
                 channel_list.count += 1;
+                specified_channel->count += 1;
             }
         
         } else if (req->req_type == REQ_LEAVE) {
@@ -105,6 +107,7 @@ int main(int argc, char *argv[]) {
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
             Channel *specified_channel = find_channel(&channel_list, req_leave->req_channel);
             remove_user_from_channel(specified_channel, user->username);
+            specified_channel->count -= 1;
         } else if (req->req_type == REQ_SAY) {
             struct request_say *req_say = (struct request_say *)req;
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
@@ -130,7 +133,7 @@ int main(int argc, char *argv[]) {
             }
         } else if (req->req_type == REQ_LIST) {
             // send packet one at a time
-            printf("req for list\n");
+            // printf("req for list\n");
             struct request_list *req_list = (struct request_list *)req;
             struct text_list txt_list;
             txt_list.txt_type = TXT_LIST;
@@ -139,14 +142,27 @@ int main(int argc, char *argv[]) {
             Channel *current_channel = channel_list.head;
             while (current_channel) {
                 strcpy(txt_list.txt_channels, current_channel->name);
-                printf("channels sent: %s\n", current_channel->name);
+                // printf("channels sent: %s\n", current_channel->name);
                 int send_message = sendto(s, &txt_list, sizeof(txt_list), 0, &client, sizeof(client));
                 current_channel = current_channel->next;
             }
         }
+        else if (req->req_type == REQ_WHO) { // TODO finish this, probs add member var of count to channel
+            struct request_who *req_who = (struct request_who *)req;
+            struct text_who txt_who;
+            strcpy(txt_who.txt_channel, req_who->req_channel);
+            txt_who.txt_type = TXT_WHO;
+            Channel *specified_channel = find_channel(&channel_list, req_who->req_channel);
+            txt_who.txt_nusernames = specified_channel->count;
+            printf("count of who channel: %d\n", specified_channel->count);
+            User *current_user = specified_channel->users.head;
+            while (current_user) {
+                strcpy(txt_who.us_username, current_user->username);
+                int send_message = sendto(s, &txt_who, sizeof(txt_who), 0, &client, sizeof(client));
+                current_user = current_user->next;
+            }
+        }
         
-
-        printf("channel count: %d\n", channel_list.count);
         print_channels(&channel_list);
         User *curr = user_list.head;
         while (curr) {
