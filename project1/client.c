@@ -93,10 +93,10 @@ int main(int argc, char *argv[]) {
                     strcpy(active_channel, "None");
                 }
             }else if (strcmp(command, "/list") == 0) {
-                for (int i = 0; i < channel_count; i++) {
-                    if (strcmp(users_channels[i], " ") != 0)
-                        printf("users channel %d: %s\n", i, users_channels[i]);     
-                }
+                struct request_list req_list;
+                req_list.req_type = REQ_LIST;
+                ssize_t send_message = sendto(client_socket, &req_list, sizeof(req_list), 0,
+                        (struct sockaddr *)&server_addr, sizeof(server_addr));
             } else if (strcmp(command, "/who") == 0) { // TODO, needs info from server
                 printf("works");
             } else if (strcmp(command, "/switch") == 0) {
@@ -241,13 +241,22 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
             buffer[bytes_received] = '\0';
             struct text *txt = (struct text *)buffer;
             // printf("message received: %d\n", txt->txt_type); fflush(stdout);
-            if (txt->txt_type == 0) {
+            if (txt->txt_type == TXT_SAY) {
                 struct text_say *txt_say = (struct text_say *)txt;
-                // printf("message username: %s\n", txt_say->txt_username);
-                // printf("message channel: %s\n", txt_say->txt_channel);
-                // printf("message sent: %s\n", txt_say->txt_text); fflush(stdout);
                 printf("[%s][%s]: %s\n", txt_say->txt_channel, txt_say->txt_username, txt_say->txt_text);
                 fflush(stdout);
+            }
+            else if (txt->txt_type == TXT_LIST) {
+                struct text_list *txt_list = (struct text_list *)txt;
+                char list_buf[32];
+                printf("Channels List:\n"); fflush(stdout);
+                printf("\t%s\n", txt_list->txt_channels);
+                for (int i = 0; i < txt_list->txt_nchannels-1; i++) {
+                    bytes_received = recvfrom(client_socket, list_buf, sizeof(list_buf), 0, 
+                        (struct sockaddr *)server_addr, &buf_size);
+                    txt_list = (struct text_list *)list_buf;
+                    printf("\t%s\n", txt_list->txt_channels); fflush(stdout);
+                }
             }
             printf("> %s", user_input); fflush(stdout);
         }

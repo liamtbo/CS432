@@ -28,6 +28,7 @@ typedef struct Channel {
 // Linked list of Channels
 typedef struct ChannelList {
     Channel *head;
+    int count;
 } ChannelList;
 
 User *create_user(const char *ip, in_port_t port, const char *username);

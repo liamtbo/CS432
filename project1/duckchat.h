@@ -121,7 +121,7 @@ struct channel_info {
 struct text_list {
         text_t txt_type; /* = TXT_LIST */
         int txt_nchannels;
-        struct channel_info txt_channels[0]; // May actually be more than 0
+        struct channel_info txt_channels[32]; // May actually be more than 0
 } packed;
 
 /* This is a substructure used by text_who. */

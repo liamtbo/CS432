@@ -48,6 +48,7 @@ int main(int argc, char *argv[]) {
     ChannelList channel_list = {NULL};
     UserList user_list = {NULL};
     add_channel(&channel_list, "Common");
+    channel_list.count += 1;
 
     while (1) {
         int bytes_returned = recvfrom(s, buffer, sizeof(buffer), 0, (struct sockaddr *)&client, &client_len);
@@ -96,6 +97,7 @@ int main(int argc, char *argv[]) {
                 add_channel(&channel_list, req_join->req_channel);
                 specified_channel = find_channel(&channel_list, req_join->req_channel);
                 add_user_to_channel(specified_channel, ip_str, ntohs(client.sin_port), user->username);
+                channel_list.count += 1;
             }
         
         } else if (req->req_type == REQ_LEAVE) {
@@ -111,12 +113,7 @@ int main(int argc, char *argv[]) {
             strcpy(txt_say.txt_channel, req_say->req_channel);
             strcpy(txt_say.txt_username, user->username);
             strcpy(txt_say.txt_text, req_say->req_text);
-            // find channel user list
-            // for each user in channel:
-                // get port and IP
-                // update client addr_in object
-                // send out packet to them
-            // TODO working on this
+ 
             Channel *specified_channel = find_channel(&channel_list, req_say->req_channel);
             UserList channels_users = specified_channel->users;
             User *current_user = channels_users.head;
@@ -131,10 +128,25 @@ int main(int argc, char *argv[]) {
                 int send_message = sendto(s, &txt_say, sizeof(txt_say), 0, &client, sizeof(client));
                 current_user = current_user->next;
             }
-        } 
+        } else if (req->req_type == REQ_LIST) {
+            // send packet one at a time
+            printf("req for list\n");
+            struct request_list *req_list = (struct request_list *)req;
+            struct text_list txt_list;
+            txt_list.txt_type = TXT_LIST;
+            txt_list.txt_nchannels = channel_list.count;
+
+            Channel *current_channel = channel_list.head;
+            while (current_channel) {
+                strcpy(txt_list.txt_channels, current_channel->name);
+                printf("channels sent: %s\n", current_channel->name);
+                int send_message = sendto(s, &txt_list, sizeof(txt_list), 0, &client, sizeof(client));
+                current_channel = current_channel->next;
+            }
+        }
         
 
-
+        printf("channel count: %d\n", channel_list.count);
         print_channels(&channel_list);
         User *curr = user_list.head;
         while (curr) {
