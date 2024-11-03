@@ -86,15 +86,21 @@ int main(int argc, char *argv[]) {
             }else if (strcmp(command, "/list") == 0) {
                 struct request_list req_list;
                 req_list.req_type = REQ_LIST;
-                ssize_t send_message = sendto(client_socket, &req_list, sizeof(req_list), 0,
-                        (struct sockaddr *)&server_addr, sizeof(server_addr));
+                if (sendto(client_socket, &req_list, sizeof(req_list), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+                    printf("/list failed to send\n");
+                    cooked_mode();
+                    exit(EXIT_FAILURE);
+                }
             } else if (strcmp(command, "/who") == 0) { // TODO, needs info from server
                 printf("works\n");
                 struct request_who req_who;
                 req_who.req_type = REQ_WHO;
                 strcpy(req_who.req_channel, parsed_s[1]);
-                ssize_t send_message = sendto(client_socket, &req_who, sizeof(req_who), 0,
-                        (struct sockaddr *)&server_addr, sizeof(server_addr));
+                if (sendto(client_socket, &req_who, sizeof(req_who), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+                    printf("/who failed to send\n");
+                    cooked_mode();
+                    exit(EXIT_FAILURE);
+                }
             } else if (strcmp(command, "/switch") == 0) {
                 strcpy(active_channel, parsed_s[1]);
                 printf("active channel: %s\n", active_channel);  
@@ -192,9 +198,12 @@ void logout(struct sockaddr_in *server_addr, int client_socket) {
     struct request_logout req_logout;
     req_logout.req_type = REQ_LOGOUT;
 
-    ssize_t send_message = sendto(client_socket, &req_logout, sizeof(req_logout), 0,
-             (struct sockaddr *)server_addr, sizeof(*server_addr));
-    if (send_message < 0) { perror("Error: problem sending logout"); exit(EXIT_FAILURE);}
+    if (sendto(client_socket, &req_logout, sizeof(req_logout), 0, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0) {
+        printf("logout failed to send\n");
+        cooked_mode();
+        exit(EXIT_FAILURE);
+    }
+
 }
 
 void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server_addr) {
@@ -214,7 +223,7 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
         if (select(client_socket + 1, &rfds, NULL, NULL, NULL) < 0) {
             perror("select() failed\n");
             cooked_mode();
-            exit_program(&server_addr, client_socket);
+            exit_program(server_addr, client_socket);
         }
         // if theres an input from the user into stdin
         if (FD_ISSET(client_socket, &rfds)) {
