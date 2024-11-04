@@ -21,8 +21,8 @@ int main(int argc, char *argv[]) {
     char *port = argv[2];
     char *username = argv[3];
     if (strlen(username) >= USERNAME_MAX) {
-        perror("Error: Username needs to be sub 32 chars");
-        exit(EXIT_FAILURE);
+        printf("Error: Username needs to be sub 32 chars\n");
+        exit(EXIT_FAILURE); fflush(stdout);
     }
 
     raw_mode();
@@ -102,7 +102,6 @@ int main(int argc, char *argv[]) {
                 }
             } else if (strcmp(command, "/switch") == 0) {
                 strcpy(active_channel, parsed_s[1]);
-                printf("active channel: %s\n", active_channel);  
             } 
             else {
                 printf("%s is an invalid command. Please enter one of the following: \
@@ -132,6 +131,10 @@ void say_command(struct sockaddr_in *server_addr, int client_socket,
                   char *active_channel, char *message) {
     struct request_say req_say;
     req_say.req_type = REQ_SAY;
+    if (strlen(message) > 64) {
+        printf("error: message needs to be under 64 chars\n");
+        return;
+    }
     strcpy(req_say.req_channel, active_channel);
     // printf("say_command():message: %s\n", message);
     strcpy(req_say.req_text, message);
@@ -152,8 +155,8 @@ void exit_program(struct sockaddr_in *server_addr, int client_socket) {
 void join_channel(struct sockaddr_in *server_addr, int client_socket, 
                   char *channel, int *channel_count, 
                   char *active_channel) {
-    if (strlen(channel) > 127) { // 127 bc of null character
-        printf("Failed to add: Please keep channel name under 127 chars\n"); fflush(stdout);
+    if (strlen(channel) > CHANNEL_MAX) { // 127 bc of null character
+        printf("Failed to add: Please keep channel name under %d chars\n", CHANNEL_MAX); fflush(stdout);
         return;
     }
 
@@ -287,7 +290,7 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
             count++;
             if (count == (USER_INPUT_MAX - 1)) {
                 user_input[count] = '\0'; 
-                printf("\nmax user input reached\n"); fflush(stdout);
+                printf("\nerror: max user input reached\n"); fflush(stdout);
                 break;
             }
 

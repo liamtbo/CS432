@@ -69,17 +69,20 @@ int main(int argc, char *argv[]) {
             add_user(&user_list, ip_str, ntohs(client.sin_port), req_login->req_username);
         } 
         else if (req->req_type == REQ_LOGOUT) {
-            printf("logout\n");
             // struct request_logout *req_logout = (struct request_logout *)req;
             // think seg fault error is coming from here
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
+            printf("sever: %s logged out\n", user->username);
             if (user == NULL) {
                 printf("user == null\n");
             }
             Channel *current = channel_list.head;
             while (current) {
-                // printf("username in main: %s\n", user->username);
                 remove_user_from_channel(current, user->username);
+                current->count -= 1;
+                if (current->count == 0) {
+                    remove_channel(&channel_list, current->name);
+                }
                 current = current->next;
             }
             remove_user(&user_list, user->username);
@@ -188,15 +191,15 @@ int main(int argc, char *argv[]) {
             }
         }
         
-        // print_channels(&channel_list);
-        // User *curr = user_list.head;
-        // while (curr) {
-        //     printf("users in user list: %s\n", curr->username);
-        //     curr = curr->next;
-        // }
-        // // printf("does user exist in user list: %s\n", current->username);
+        print_channels(&channel_list);
+        User *curr = user_list.head;
+        while (curr) {
+            printf("users in user list: %s\n", curr->username);
+            curr = curr->next;
+        }
+        // printf("does user exist in user list: %s\n", current->username);
 
-        // printf("-------------------------");
+        printf("-------------------------");
     }
 }
 
