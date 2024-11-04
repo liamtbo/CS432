@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
                 join_channel(&server_addr, client_socket, parsed_s[1], &channel_count, active_channel);                
                 printf("active channel: %s\n", active_channel);  
             } else if (strcmp(command, "/leave") == 0) {
-                printf("leaving %s...\n", parsed_s[1]);
+                // printf("leaving %s...\n", parsed_s[1]);
                 leave_channel(&server_addr, client_socket, parsed_s[1]);
                 // is user left active channel
                 if (strcmp(parsed_s[1], active_channel) == 0) {
@@ -92,7 +92,6 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
             } else if (strcmp(command, "/who") == 0) { // TODO, needs info from server
-                printf("works\n");
                 struct request_who req_who;
                 req_who.req_type = REQ_WHO;
                 strcpy(req_who.req_channel, parsed_s[1]);

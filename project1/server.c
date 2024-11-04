@@ -7,9 +7,6 @@
 #include "duckchat.h"
 #include "server.h"
 
-
-
-
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         printf("error: format is ./server <hostname> <port>");
@@ -44,7 +41,6 @@ int main(int argc, char *argv[]) {
     int b = bind(s, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (b < 0) { perror("Error calling bind()"); exit(EXIT_FAILURE);}
 
-    // TODOL need to change to just req, find req type, convert pointer to that type
     char buffer[sizeof(struct request_say)];  // Use the size of the largest struct
 
     struct sockaddr_in client;
@@ -64,11 +60,11 @@ int main(int argc, char *argv[]) {
         inet_ntop(AF_INET, &client.sin_addr, ip_str, sizeof(ip_str));
 
         struct request *req = (struct request *)buffer;  // Initial cast to check req_type
-        printf("req: %d\n", req->req_type);
+        // printf("req: %d\n", req->req_type);
 
         if (req->req_type == REQ_LOGIN) { // TODO , make sure username isn't in use
-            printf("login\n");
             struct request_login *req_login = (struct request_login *)req; 
+            printf("server: %s login in\n", req_login->req_username);
 
             add_user(&user_list, ip_str, ntohs(client.sin_port), req_login->req_username);
         } 
@@ -91,6 +87,7 @@ int main(int argc, char *argv[]) {
         } else if (req->req_type == REQ_JOIN) {
             struct request_join *req_join = (struct request_join *)req;
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
+            printf("server: %s join channel %s\n", user->username, req_join->req_channel);
             // Channel *head_channel = channel_list.head;
             Channel *specified_channel = find_channel(&channel_list, req_join->req_channel);
             // if channel found
@@ -111,11 +108,22 @@ int main(int argc, char *argv[]) {
             struct request_leave *req_leave = (struct request_leave *)req;
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
             Channel *specified_channel = find_channel(&channel_list, req_leave->req_channel);
-            remove_user_from_channel(specified_channel, user->username);
-            specified_channel->count -= 1;
+            if (specified_channel != NULL) {
+                printf("server: %s leaves channel %s\n", user->username, specified_channel->name);
+                remove_user_from_channel(specified_channel, user->username);
+                specified_channel->count -= 1;
+                if (specified_channel->count == 0) {
+                    printf("server: removing empty channel %s\n", specified_channel->name);
+                    remove_channel(&channel_list, specified_channel->name);
+                }
+            } else {
+                printf("server: %s trying to leave non-existent channel %s\n", user->username, req_leave->req_channel);
+            }
+            
         } else if (req->req_type == REQ_SAY) {
             struct request_say *req_say = (struct request_say *)req;
             User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
+            printf("server: %s sends say message in %s\n", user->username, req_say->req_channel);
             struct text_say txt_say;
             txt_say.txt_type = 0;
             strcpy(txt_say.txt_channel, req_say->req_channel);
@@ -141,7 +149,7 @@ int main(int argc, char *argv[]) {
         } else if (req->req_type == REQ_LIST) {
             // send packet one at a time
             // printf("req for list\n");
-            // struct request_list *req_list = (struct request_list *)req;
+            printf("server: listing channels\n");
             struct text_list txt_list;
             txt_list.txt_type = TXT_LIST;
             txt_list.txt_nchannels = channel_list.count;
@@ -159,32 +167,36 @@ int main(int argc, char *argv[]) {
         }
         else if (req->req_type == REQ_WHO) { // TODO finish this, probs add member var of count to channel
             struct request_who *req_who = (struct request_who *)req;
+            printf("server: list users in channel %s\n", req_who->req_channel);
             struct text_who txt_who;
             strcpy(txt_who.txt_channel, req_who->req_channel);
             txt_who.txt_type = TXT_WHO;
             Channel *specified_channel = find_channel(&channel_list, req_who->req_channel);
-            txt_who.txt_nusernames = specified_channel->count;
-            printf("count of who channel: %d\n", specified_channel->count);
-            User *current_user = specified_channel->users.head;
-            while (current_user) {
-                strcpy(txt_who.us_username, current_user->username);
-                if (sendto(s, &txt_who, sizeof(txt_who), 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
-                    perror("sendto() error");
-                    exit(EXIT_FAILURE);
-                };
-                current_user = current_user->next;
+            if (specified_channel) {
+                txt_who.txt_nusernames = specified_channel->count;
+                User *current_user = specified_channel->users.head;
+                while (current_user) {
+                    strcpy(txt_who.us_username, current_user->username);
+                    if (sendto(s, &txt_who, sizeof(txt_who), 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
+                        perror("sendto() error");
+                        exit(EXIT_FAILURE);
+                    };
+                    current_user = current_user->next;
+                }
+            } else {
+                printf("server: trying to list users in non-existing channel %s\n", req_who->req_channel);
             }
         }
         
-        print_channels(&channel_list);
-        User *curr = user_list.head;
-        while (curr) {
-            printf("users in user list: %s\n", curr->username);
-            curr = curr->next;
-        }
-        // printf("does user exist in user list: %s\n", current->username);
+        // print_channels(&channel_list);
+        // User *curr = user_list.head;
+        // while (curr) {
+        //     printf("users in user list: %s\n", curr->username);
+        //     curr = curr->next;
+        // }
+        // // printf("does user exist in user list: %s\n", current->username);
 
-        printf("-------------------------");
+        // printf("-------------------------");
     }
 }
 
