@@ -150,56 +150,77 @@ int main(int argc, char *argv[]) {
                 current_user = current_user->next;
             }
         } else if (req->req_type == REQ_LIST) {
-            // send packet one at a time
-            // printf("req for list\n");
             printf("server: listing channels\n");
-            struct text_list txt_list;
-            txt_list.txt_type = TXT_LIST;
-            txt_list.txt_nchannels = channel_list.count;
 
+            // Calculate the total size for text_list including all channel_info elements
+            size_t list_size = sizeof(struct text_list) + channel_list.count * sizeof(struct channel_info);
+            struct text_list *txt_list = malloc(list_size);
+            if (txt_list == NULL) {
+                perror("malloc() error");
+                exit(EXIT_FAILURE);
+            }
+
+            txt_list->txt_type = TXT_LIST;
+            txt_list->txt_nchannels = channel_list.count;
+
+            // Populate each channel_info element
             Channel *current_channel = channel_list.head;
-            while (current_channel) {
-                strcpy(txt_list.txt_channels, current_channel->name);
-                // printf("channels sent: %s\n", current_channel->name);
-                if (sendto(s, &txt_list, sizeof(txt_list), 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
-                    perror("sendto() error");
-                    exit(EXIT_FAILURE);
-                }
+            int channel_index = 0;
+            while (current_channel && channel_index < txt_list->txt_nchannels) {
+                strcpy(txt_list->txt_channels[channel_index].ch_channel, current_channel->name);
+                channel_index++;
                 current_channel = current_channel->next;
             }
-        }
-        else if (req->req_type == REQ_WHO) { // TODO finish this, probs add member var of count to channel
-            struct request_who *req_who = (struct request_who *)req;
-            printf("server: list users in channel %s\n", req_who->req_channel);
-            struct text_who txt_who;
-            strcpy(txt_who.txt_channel, req_who->req_channel);
-            txt_who.txt_type = TXT_WHO;
-            Channel *specified_channel = find_channel(&channel_list, req_who->req_channel);
-            if (specified_channel) {
-                txt_who.txt_nusernames = specified_channel->count;
-                User *current_user = specified_channel->users.head;
-                while (current_user) {
-                    strcpy(txt_who.us_username, current_user->username);
-                    if (sendto(s, &txt_who, sizeof(txt_who), 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
-                        perror("sendto() error");
-                        exit(EXIT_FAILURE);
-                    };
-                    current_user = current_user->next;
-                }
-            } else {
-                printf("server: trying to list users in non-existing channel %s\n", req_who->req_channel);
+
+            // Send the populated txt_list structure
+            if (sendto(s, txt_list, list_size, 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
+                perror("sendto() error");
+                free(txt_list);
+                exit(EXIT_FAILURE);
             }
+
+            // Free the allocated memory after sending
+            free(txt_list);
+        }
+        else if (req->req_type == REQ_WHO) { 
+            printf("server: listing users in channel\n");
+            struct request_who *req_who = (struct request_who *)req;
+            Channel *specified_channel = find_channel(&channel_list, req_who->req_channel);
+            size_t list_size = sizeof(struct text_who) + specified_channel->count * sizeof(struct user_info);
+            printf("specified channel count: %d\n", specified_channel->count);
+            struct text_who *txt_who = (struct text_who *)malloc(list_size);
+            if (txt_who == NULL) {
+                perror("malloc() error");
+                exit(EXIT_FAILURE);
+            }
+            txt_who->txt_type = TXT_WHO;
+            txt_who->txt_nusernames = specified_channel->count;
+
+            User *current_user = specified_channel->users.head;
+            int user_index = 0;
+            while (current_user && user_index < txt_who->txt_nusernames) {
+                printf("who: %s\n", current_user->username);
+                strcpy(txt_who->txt_users[user_index].us_username, current_user->username);
+                user_index++;
+                current_user = current_user->next;
+            }
+            if (sendto(s, txt_who, list_size, 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
+                perror("sendto() error");
+                free(txt_who);
+                exit(EXIT_FAILURE);
+            }
+            free(txt_who);
         }
         
-        print_channels(&channel_list);
-        User *curr = user_list.head;
-        while (curr) {
-            printf("users in user list: %s\n", curr->username);
-            curr = curr->next;
-        }
-        // printf("does user exist in user list: %s\n", current->username);
+        // print_channels(&channel_list);
+        // User *curr = user_list.head;
+        // while (curr) {
+        //     printf("users in user list: %s\n", curr->username);
+        //     curr = curr->next;
+        // }
+        // // printf("does user exist in user list: %s\n", current->username);
 
-        printf("-------------------------");
+        // printf("-------------------------");
     }
 }
 

@@ -39,7 +39,7 @@ Please specify which of the following features work
 
 - Does the client send Keep Alive message when not needed (for extra credit)? no
 
-- Can the client handle messages that are out of order(e.g. /leave before a /join)? yes/no
+- Can the client handle messages that are out of order(e.g. /leave before a /join)? yes
 
 - Can the client redisplay the prompt and user input when a message from the server is received while the user is typing (for extra credit)? yes
 
@@ -67,4 +67,4 @@ Please specify which of the following features work
 
 - Does the server timeout users correctly (for extra credit)? no
 
-- Can the server handle messages that are out of order(e.g. /say before a client has logged in)? yes/no
+- Can the server handle messages that are out of order(e.g. /say before a client has logged in)? yes

@@ -71,17 +71,22 @@ int main(int argc, char *argv[]) {
                 cooked_mode();
                 exit_program(&server_addr, client_socket);
             } else if (strcmp(command, "/join") == 0) {
-                printf("joining %s...\n", parsed_s[1]);
-                // TODO: realloc if channel is full
-                // save channel to users channels
-                join_channel(&server_addr, client_socket, parsed_s[1], &channel_count, active_channel);                
-                printf("active channel: %s\n", active_channel);  
+                if (argument < 2) {
+                    printf("error: please name the channel you would like to leave\n");
+                } else {
+                    printf("joining %s...\n", parsed_s[1]);
+                    join_channel(&server_addr, client_socket, parsed_s[1], &channel_count, active_channel);
+                }          
             } else if (strcmp(command, "/leave") == 0) {
                 // printf("leaving %s...\n", parsed_s[1]);
-                leave_channel(&server_addr, client_socket, parsed_s[1]);
-                // is user left active channel
-                if (strcmp(parsed_s[1], active_channel) == 0) {
-                    strcpy(active_channel, "None");
+                if (argument < 2) {
+                    printf("error: please name the channel you would like to leave\n");
+                } else {
+                    leave_channel(&server_addr, client_socket, parsed_s[1]);
+                    // is user left active channel
+                    if (strcmp(parsed_s[1], active_channel) == 0) {
+                        strcpy(active_channel, "None");
+                    }
                 }
             }else if (strcmp(command, "/list") == 0) {
                 struct request_list req_list;
@@ -246,27 +251,21 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
             }
             else if (txt->txt_type == TXT_LIST) {
                 struct text_list *txt_list = (struct text_list *)txt;
-                // char list_buf[32];
-                char list_buf[sizeof(struct text_list)];
                 printf("Channels List:\n"); fflush(stdout);
-                printf("\t%s\n", txt_list->txt_channels);
-                for (int i = 0; i < txt_list->txt_nchannels-1; i++) {
-                    bytes_received = recvfrom(client_socket, list_buf, sizeof(list_buf), 0, 
-                        (struct sockaddr *)server_addr, &buf_size);
-                    txt_list = (struct text_list *)list_buf;
-                    printf("\t%s\n", txt_list->txt_channels); fflush(stdout);
+
+                // Display each channel in the list
+                for (int i = 0; i < txt_list->txt_nchannels; i++) {
+                    printf("\t%s\n", txt_list->txt_channels[i].ch_channel); fflush(stdout);
                 }
             }
+            
             else if (txt->txt_type == TXT_WHO) {
                 struct text_who *txt_who = (struct text_who *)txt;
-                char who_buf[sizeof(*txt_who)];
-                printf("Who List:\n"); fflush(stdout);
-                printf("\t%s\n", txt_who->us_username); // todo how is this getting info in txt_list too
-                for (int i = 0; i < txt_who->txt_nusernames-1; i++) {
-                    bytes_received = recvfrom(client_socket, who_buf, sizeof(who_buf), 0, 
-                        (struct sockaddr *)server_addr, &buf_size);
-                    txt_who = (struct text_who *)who_buf;
-                    printf("\t%s\n", txt_who->us_username); fflush(stdout);
+                printf("Users in Channel %s:\n", txt_who->txt_channel); fflush(stdout);
+
+                // Display each user in the channel
+                for (int i = 0; i < txt_who->txt_nusernames; i++) {
+                    printf("\t%s\n", txt_who->txt_users[i].us_username); fflush(stdout);
                 }
             }
             printf("> %s", user_input); fflush(stdout);
@@ -293,9 +292,6 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
                 printf("\nerror: max user input reached\n"); fflush(stdout);
                 break;
             }
-
-            // reinit stdin file descriptor
-            // TODO reset socket as well later
             FD_ZERO(&rfds);
             FD_SET(0, &rfds);
         }
@@ -329,7 +325,7 @@ int string_parser(char **parsed_s, char*raw_s) {
     token = strtok(NULL, " "); // get command args if they exist
     // printf("token: %s\n", token); fflush(stdout);
     if (token != NULL) {
-        // count ++;
+        count ++;
         strcpy(parsed_s[1], token); // here
     }
 
