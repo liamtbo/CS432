@@ -9,6 +9,7 @@
 #include <netinet/in.h> // in_port_t and in_addr
 #include <arpa/inet.h> // inet_pton
 #include <sys/select.h> // select()
+#include <netdb.h> // gethostbyname
 
 #define USER_INPUT_MAX 256
 
@@ -299,17 +300,24 @@ void prompt_user(char *user_input, int client_socket, struct sockaddr_in *server
 }
 
 void setup_server_addr(struct sockaddr_in *server_addr, char *host_name, char *port) {
+    // Zero out the structure
     memset(server_addr, 0, sizeof(*server_addr));
     server_addr->sin_family = AF_INET;
     server_addr->sin_port = htons(atoi(port));
-    if (strcmp(host_name, "localhost") == 0) {
-        strcpy(host_name, "127.0.0.1");
-    }
-    // converts string server ip to AF address family
-    if (inet_pton(AF_INET, host_name, &server_addr->sin_addr) < 1) {
-        printf("Error: problem converting str to net byte order"), fflush(stdout);
-        cooked_mode();
-        exit(EXIT_FAILURE);
+
+    // Use "127.0.0.1" if host_name is "localhost"
+    // Convert hostname to IP address
+    if (inet_pton(AF_INET, host_name, &server_addr->sin_addr) <= 0) {
+        // If the hostname is not an IP address, try to resolve it
+        struct hostent *host = gethostbyname(host_name);
+        if (host == NULL) {
+            perror("gethostbyname");
+            exit(EXIT_FAILURE);
+        }
+        // struct in_addr *addr = (struct in_addr *)host->h_addr_list[0];
+        // printf("Resolved IP: %s\n", inet_ntoa(*addr));
+
+        memcpy(&server_addr->sin_addr, host->h_addr_list[0], host->h_length);
     }
 }
 

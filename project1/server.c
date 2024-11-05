@@ -6,6 +6,8 @@
 #include <arpa/inet.h> // inet_pton
 #include "duckchat.h"
 #include "server.h"
+#include <netdb.h> // gethostbyname
+
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
@@ -22,14 +24,19 @@ int main(int argc, char *argv[]) {
     memset(&server_addr, 0, sizeof(struct sockaddr_in));
     server_addr.sin_family = AF_INET; // IPv4 internet protocol
     server_addr.sin_port = htons(atoi(port)); // local port 5000
-    if (strcmp(host_name, "localhost") == 0) {
-        strcpy(host_name, "127.0.0.1");
-    }
-    // converts IP address (host_name) from textual representation into
-    // a binary format and store in server_addr.sin_addr
-    if (inet_pton(AF_INET, host_name, &server_addr.sin_addr) < 1) {
-        perror("Error: problem converting str to net byte order");
-        exit(EXIT_FAILURE);
+    // Use "127.0.0.1" if host_name is "localhost"
+    // Convert hostname to IP address
+    if (inet_pton(AF_INET, host_name, &server_addr.sin_addr) <= 0) {
+        // If the hostname is not an IP address, try to resolve it
+        struct hostent *host = gethostbyname(host_name);
+        if (host == NULL) {
+            perror("gethostbyname");
+            exit(EXIT_FAILURE);
+        }
+        // struct in_addr *addr = (struct in_addr *)host->h_addr_list[0];
+        // printf("Resolved IP: %s\n", inet_ntoa(*addr));
+
+        memcpy(&server_addr.sin_addr, host->h_addr_list[0], host->h_length);
     }
 
     // allocates a socket and returns a descriptor
