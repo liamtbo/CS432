@@ -33,9 +33,6 @@ int main(int argc, char *argv[]) {
             perror("gethostbyname");
             exit(EXIT_FAILURE);
         }
-        // struct in_addr *addr = (struct in_addr *)host->h_addr_list[0];
-        // printf("Resolved IP: %s\n", inet_ntoa(*addr));
-
         memcpy(&server_addr.sin_addr, host->h_addr_list[0], host->h_length);
     }
 
@@ -72,163 +69,121 @@ int main(int argc, char *argv[]) {
         if (req->req_type == REQ_LOGIN) { // TODO , make sure username isn't in use
             struct request_login *req_login = (struct request_login *)req; 
             printf("server: %s login in\n", req_login->req_username);
-
             add_user(&user_list, ip_str, ntohs(client.sin_port), req_login->req_username);
-        } 
+        }
         else if (req->req_type == REQ_LOGOUT) {
-            // struct request_logout *req_logout = (struct request_logout *)req;
-            // think seg fault error is coming from here
-            User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
-            printf("sever: %s logged out\n", user->username);
-            if (user == NULL) {
-                printf("user == null\n");
-            }
-            Channel *current = channel_list.head;
-            while (current) {
-                remove_user_from_channel(current, user->username);
-                current->count -= 1;
-                if (current->count == 0) {
-                    remove_channel(&channel_list, current->name);
-                }
-                current = current->next;
-            }
-            remove_user(&user_list, user->username);
-        
+            logout(&user_list, ip_str, &client, &channel_list);
+
         } else if (req->req_type == REQ_JOIN) {
-            struct request_join *req_join = (struct request_join *)req;
-            User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
-            printf("server: %s join channel %s\n", user->username, req_join->req_channel);
-            // Channel *head_channel = channel_list.head;
-            Channel *specified_channel = find_channel(&channel_list, req_join->req_channel);
-            // if channel found
-            if (specified_channel) {
-                add_user_to_channel(specified_channel, ip_str, ntohs(client.sin_port), user->username);
-                specified_channel->count += 1;
-            }
-            // if channel not found
-            else {
-                add_channel(&channel_list, req_join->req_channel);
-                specified_channel = find_channel(&channel_list, req_join->req_channel);
-                add_user_to_channel(specified_channel, ip_str, ntohs(client.sin_port), user->username);
-                channel_list.count += 1;
-                specified_channel->count += 1;
-            }
-        
+            join(req, &user_list, ip_str, &client, &channel_list);
+
         } else if (req->req_type == REQ_LEAVE) {
-            struct request_leave *req_leave = (struct request_leave *)req;
-            User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
-            Channel *specified_channel = find_channel(&channel_list, req_leave->req_channel);
-            if (specified_channel != NULL) {
-                printf("server: %s leaves channel %s\n", user->username, specified_channel->name);
-                remove_user_from_channel(specified_channel, user->username);
-                specified_channel->count -= 1;
-                if (specified_channel->count == 0) {
-                    printf("server: removing empty channel %s\n", specified_channel->name);
-                    remove_channel(&channel_list, specified_channel->name);
-                }
-            } else {
-                printf("server: %s trying to leave non-existent channel %s\n", user->username, req_leave->req_channel);
-            }
+            leave(req, &user_list, ip_str, &client, &channel_list);
             
         } else if (req->req_type == REQ_SAY) {
-            struct request_say *req_say = (struct request_say *)req;
-            User *user = find_user_by_ip_port(&user_list, ip_str, ntohs(client.sin_port));
-            printf("server: %s sends say message in %s\n", user->username, req_say->req_channel);
-            struct text_say txt_say;
-            txt_say.txt_type = 0;
-            strcpy(txt_say.txt_channel, req_say->req_channel);
-            strcpy(txt_say.txt_username, user->username);
-            strcpy(txt_say.txt_text, req_say->req_text);
- 
-            Channel *specified_channel = find_channel(&channel_list, req_say->req_channel);
-            UserList channels_users = specified_channel->users;
-            User *current_user = channels_users.head;
-            while (current_user) {
-                client.sin_port = htons(current_user->port);
-                // converts IPV4 from text to binary form
-                if (inet_pton(AF_INET, current_user->ip, &(client.sin_addr)) < 1) {
-                    printf("Error: problem converting str to net byte order"), fflush(stdout);
-                    exit(EXIT_FAILURE);
-                }
-                if (sendto(s, &txt_say, sizeof(txt_say), 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
-                    perror("sendto error");
-                    exit(EXIT_FAILURE);
-                }
-                current_user = current_user->next;
-            }
+            say(req, s, &user_list, ip_str, &client, &channel_list);
+
         } else if (req->req_type == REQ_LIST) {
-            printf("server: listing channels\n");
+            printf("server: listing channels is not supported\n");
 
-            // Calculate the total size for text_list including all channel_info elements
-            size_t list_size = sizeof(struct text_list) + channel_list.count * sizeof(struct channel_info);
-            struct text_list *txt_list = malloc(list_size);
-            if (txt_list == NULL) {
-                perror("malloc() error");
-                exit(EXIT_FAILURE);
-            }
-
-            txt_list->txt_type = TXT_LIST;
-            txt_list->txt_nchannels = channel_list.count;
-
-            // Populate each channel_info element
-            Channel *current_channel = channel_list.head;
-            int channel_index = 0;
-            while (current_channel && channel_index < txt_list->txt_nchannels) {
-                strcpy(txt_list->txt_channels[channel_index].ch_channel, current_channel->name);
-                channel_index++;
-                current_channel = current_channel->next;
-            }
-
-            // Send the populated txt_list structure
-            if (sendto(s, txt_list, list_size, 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
-                perror("sendto() error");
-                free(txt_list);
-                exit(EXIT_FAILURE);
-            }
-
-            // Free the allocated memory after sending
-            free(txt_list);
         }
         else if (req->req_type == REQ_WHO) { 
-            printf("server: listing users in channel\n");
-            struct request_who *req_who = (struct request_who *)req;
-            Channel *specified_channel = find_channel(&channel_list, req_who->req_channel);
-            size_t list_size = sizeof(struct text_who) + specified_channel->count * sizeof(struct user_info);
-            printf("specified channel count: %d\n", specified_channel->count);
-            struct text_who *txt_who = (struct text_who *)malloc(list_size);
-            if (txt_who == NULL) {
-                perror("malloc() error");
-                exit(EXIT_FAILURE);
-            }
-            txt_who->txt_type = TXT_WHO;
-            txt_who->txt_nusernames = specified_channel->count;
-
-            User *current_user = specified_channel->users.head;
-            int user_index = 0;
-            while (current_user && user_index < txt_who->txt_nusernames) {
-                printf("who: %s\n", current_user->username);
-                strcpy(txt_who->txt_users[user_index].us_username, current_user->username);
-                user_index++;
-                current_user = current_user->next;
-            }
-            if (sendto(s, txt_who, list_size, 0, (struct sockaddr *)&client, sizeof(client)) < 0) {
-                perror("sendto() error");
-                free(txt_who);
-                exit(EXIT_FAILURE);
-            }
-            free(txt_who);
+            printf("server: who is in channel is not supported\n");
         }
-        
-        // print_channels(&channel_list);
-        // User *curr = user_list.head;
-        // while (curr) {
-        //     printf("users in user list: %s\n", curr->username);
-        //     curr = curr->next;
-        // }
-        // // printf("does user exist in user list: %s\n", current->username);
+        print_channels(&channel_list);
+        User *curr = user_list.head;
+        while (curr) {
+            printf("users in user list: %s\n", curr->username);
+            curr = curr->next;
+        }
+        // printf("does user exist in user list: %s\n", current->username);
 
-        // printf("-------------------------");
+        printf("-------------------------");
     }
+}
+
+void say(struct request *req, int s, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list) {
+    struct request_say *req_say = (struct request_say *)req;
+    User *user = find_user_by_ip_port(user_list, ip_str, ntohs(client->sin_port));
+    printf("server: %s sends say message in %s\n", user->username, req_say->req_channel);
+    struct text_say txt_say;
+    txt_say.txt_type = 0;
+    strcpy(txt_say.txt_channel, req_say->req_channel);
+    strcpy(txt_say.txt_username, user->username);
+    strcpy(txt_say.txt_text, req_say->req_text);
+
+    Channel *specified_channel = find_channel(channel_list, req_say->req_channel);
+    UserList channels_users = specified_channel->users;
+    User *current_user = channels_users.head;
+    while (current_user) {
+        client->sin_port = htons(current_user->port);
+        // converts IPV4 from text to binary form
+        if (inet_pton(AF_INET, current_user->ip, &(client->sin_addr)) < 1) {
+            printf("Error: problem converting str to net byte order"), fflush(stdout);
+            exit(EXIT_FAILURE);
+        }
+        if (sendto(s, &txt_say, sizeof(txt_say), 0, (struct sockaddr *)client, sizeof(*client)) < 0) {
+            perror("sendto error");
+            exit(EXIT_FAILURE);
+        }
+        current_user = current_user->next;
+    }
+}
+
+void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list) {
+    struct request_leave *req_leave = (struct request_leave *)req;
+    User *user = find_user_by_ip_port(user_list, ip_str, ntohs(client->sin_port));
+    Channel *specified_channel = find_channel(channel_list, req_leave->req_channel);
+    if (specified_channel != NULL) {
+        printf("server: %s leaves channel %s\n", user->username, specified_channel->name);
+        remove_user_from_channel(specified_channel, user->username);
+        specified_channel->count -= 1;
+        if (specified_channel->count == 0) {
+            printf("server: removing empty channel %s\n", specified_channel->name);
+            remove_channel(channel_list, specified_channel->name);
+        }
+    } else {
+        printf("server: %s trying to leave non-existent channel %s\n", user->username, req_leave->req_channel);
+    }
+}
+
+void join(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list) {
+    struct request_join *req_join = (struct request_join *)req;
+    User *user = find_user_by_ip_port(user_list, ip_str, ntohs(client->sin_port));
+    printf("server: %s join channel %s\n", user->username, req_join->req_channel);
+    // Channel *head_channel = channel_list.head;
+    Channel *specified_channel = find_channel(channel_list, req_join->req_channel);
+    // if channel found
+    if (specified_channel) {
+        add_user_to_channel(specified_channel, ip_str, ntohs(client->sin_port), user->username);
+        specified_channel->count += 1;
+    }
+    // if channel not found
+    else {
+        add_channel(channel_list, req_join->req_channel);
+        specified_channel = find_channel(channel_list, req_join->req_channel);
+        add_user_to_channel(specified_channel, ip_str, ntohs(client->sin_port), user->username);
+        channel_list->count += 1;
+        specified_channel->count += 1;
+    }
+}
+
+void logout(UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list) {
+    User *user = find_user_by_ip_port(user_list, ip_str, ntohs(client->sin_port));
+    printf("sever: %s logged out\n", user->username);
+    if (user == NULL) {
+        printf("user == null\n");
+    }
+    Channel *current = channel_list->head;
+    while (current) {
+        remove_user_from_channel(current, user->username);
+        current->count -= 1;
+        if (current->count == 0) {
+            remove_channel(channel_list, current->name);
+        }
+        current = current->next;
+    }
+    remove_user(user_list, user->username);
 }
 
 // Create a new user

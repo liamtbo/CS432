@@ -32,9 +32,14 @@ typedef struct ChannelList {
     int count;
 } ChannelList;
 
+void join(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list);
+void say(struct request *req, int s, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list);
+void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list);
+void logout(UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list);
+
 User *create_user(const char *ip, in_port_t port, const char *username);
-void add_user(UserList *user_list, const char *ip, in_port_t port, const char *username);
 void remove_user(UserList *user_list, const char *username);
+void add_user(UserList *user_list, const char *ip, in_port_t port, const char *username);
 User *find_user_by_username(UserList *user_list, const char *username);
 User *find_user_by_ip_port(UserList *user_list, const char *ip, in_port_t port);
 
