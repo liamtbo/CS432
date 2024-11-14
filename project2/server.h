@@ -18,6 +18,7 @@ typedef struct ServerAddrList {
 void populate_adjacent_servers(ServerAddrList *server_addr_list, char **argv, int argc);
 void free_adjacent_servers(ServerAddrList *server_addr_list);
 
+void process_requests(struct sockaddr_in *client, UserList *user_list, ChannelList *channel_list, int s, char *buffer);
 void join(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list);
 void say(struct request *req, int s, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list);
 void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list);

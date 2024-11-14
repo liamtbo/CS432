@@ -86,45 +86,7 @@ int main(int argc, char *argv[]) {
                 int bytes_returned = recvfrom(s, buffer, sizeof(buffer), 0, (struct sockaddr *)&client, &client_len);
                 if (bytes_returned > 0) {
                     buffer[bytes_returned] = '\0';
-                    // Print the IP address
-                    char ip_str[INET_ADDRSTRLEN]; // Buffer for the IP string
-                    // converts IP from binary form (net byte order) to readable string
-                    inet_ntop(AF_INET, &client.sin_addr, ip_str, sizeof(ip_str));
-
-                    struct request *req = (struct request *)buffer;  // Initial cast to check req_type
-                    // printf("req: %d\n", req->req_type);
-
-                    if (req->req_type == REQ_LOGIN) { // TODO , make sure username isn't in use
-                        struct request_login *req_login = (struct request_login *)req; 
-                        printf("server: %s login in\n", req_login->req_username);
-                        add_user(&user_list, ip_str, ntohs(client.sin_port), req_login->req_username);
-                    }
-                    else if (req->req_type == REQ_LOGOUT) {
-                        logout(&user_list, ip_str, &client, &channel_list);
-
-                    } else if (req->req_type == REQ_JOIN) {
-                        join(req, &user_list, ip_str, &client, &channel_list);
-
-                    } else if (req->req_type == REQ_LEAVE) {
-                        leave(req, &user_list, ip_str, &client, &channel_list);
-                        
-                    } else if (req->req_type == REQ_SAY) {
-                        say(req, s, &user_list, ip_str, &client, &channel_list);
-
-                    } else if (req->req_type == REQ_LIST) {
-                        printf("server: listing channels is not supported\n");
-
-                    }
-                    else if (req->req_type == REQ_WHO) { 
-                        printf("server: who is in channel is not supported\n");
-                    }
-                    print_channels(&channel_list);
-                    User *curr = user_list.head;
-                    while (curr) {
-                        printf("users in user list: %s\n", curr->username);
-                        curr = curr->next;
-                    }
-                    printf("-------------------------");
+                    process_requests(&client, &user_list, &channel_list, s, buffer);
                 }
                 if (bytes_returned < 0) {
                     perror("recvfrom failed");
@@ -136,6 +98,48 @@ int main(int argc, char *argv[]) {
         }        
     }
     // free_adjacent_servers(&server_addr_list);
+}
+
+void process_requests(struct sockaddr_in *client, UserList *user_list, ChannelList *channel_list, int s, char *buffer) {
+    // Print the IP address
+    char ip_str[INET_ADDRSTRLEN]; // Buffer for the IP string
+    // converts IP from binary form (net byte order) to readable string
+    inet_ntop(AF_INET, &client->sin_addr, ip_str, sizeof(ip_str));
+
+    struct request *req = (struct request *)buffer;  // Initial cast to check req_type
+    // printf("req: %d\n", req->req_type);
+
+    if (req->req_type == REQ_LOGIN) { // TODO , make sure username isn't in use
+        struct request_login *req_login = (struct request_login *)req; 
+        printf("server: %s login in\n", req_login->req_username);
+        add_user(user_list, ip_str, ntohs(client->sin_port), req_login->req_username);
+    }
+    else if (req->req_type == REQ_LOGOUT) {
+        logout(user_list, ip_str, client, channel_list);
+
+    } else if (req->req_type == REQ_JOIN) {
+        join(req, user_list, ip_str, client, channel_list);
+
+    } else if (req->req_type == REQ_LEAVE) {
+        leave(req, user_list, ip_str, client, channel_list);
+        
+    } else if (req->req_type == REQ_SAY) {
+        say(req, s, user_list, ip_str, client, channel_list);
+
+    } else if (req->req_type == REQ_LIST) {
+        printf("server: listing channels is not supported\n");
+
+    }
+    else if (req->req_type == REQ_WHO) { 
+        printf("server: who is in channel is not supported\n");
+    }
+    print_channels(channel_list);
+    User *curr = user_list->head;
+    while (curr) {
+        printf("users in user list: %s\n", curr->username);
+        curr = curr->next;
+    }
+    printf("-------------------------");
 }
 
 // holds all adjacent servers
