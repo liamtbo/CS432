@@ -10,6 +10,11 @@
 
 int main(int argc, char *argv[]) {
 
+    if (argc % 2 == 0) {
+        printf("argc: %d\n", argc);
+        printf("error: wrong number of inputs\n");
+        exit(EXIT_FAILURE);
+    }
     char *host_name = argv[1];
     char *port = argv[2];
 
@@ -18,7 +23,7 @@ int main(int argc, char *argv[]) {
     memset(&server_addr_list, 0, sizeof(ServerAddrList));
     populate_adjacent_servers(&server_addr_list, argv, argc);
 
-    ServerAddr *current = server_addr_list.head;
+    // ServerAddr *current = server_addr_list.head;
     // while (current) {
     //     printf("%s:%d\n", current->ip, current->port);
     //     current = current->next;

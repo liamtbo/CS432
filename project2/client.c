@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // setting up server address
+    // setting up server address (IP and port)
     struct sockaddr_in server_addr;
     setup_server_addr(&server_addr, host_name, port);
 

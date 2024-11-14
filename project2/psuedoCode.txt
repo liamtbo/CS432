@@ -1,0 +1,48 @@
+
+client --- s1 --- s2
+
+server code
+
+**TODO: need to put in non-blocking code so that i can check time of last join,
+and kick servers that haven't sent in 2 min
+
+create linked list of sockaddr_in of adj servers
+
+channel_servers_map = {}
+while 1
+
+    if one minute has passed:
+        for each channel
+            for each server subbed to channel
+                s2s send join channel
+
+    if two minutes has passed:
+        for each channel in channel_servers_map:
+            for each server on channel
+                if curr_time
+
+    recv(socket)
+    ...
+    if client join channel or received join channel:
+        if server is subbed to channel:
+            if src join channel not in channel_servers_map[channel]:
+                channel_servers_map[channel].append((adjserver, timestamp))
+            // update time stamp
+            channel_servers_map[channel].append((adjserver, timestamp))
+        if server is not subbed to channel
+            sub to channel
+            channel_servers_map[channel].append(src server, timestamp)
+            for every adjacent server
+                channel_servers_map[channel].append((adjserver, timestamp))
+                send s2s join channel
+
+    if client say or received s2s say channel:
+        say to all users on current server
+        for every server in channel_servers_map[channel] (except the server that sent s2s say):
+            send s2s say to server
+        if server has no users on say channel and no other channnels are on channel except for src of s2s say:
+            send leave channel to src of s2s say
+            leave channel locally
+
+    if s2s server_x leave channel
+        channel_servers_map[channel].remove(server_x)
