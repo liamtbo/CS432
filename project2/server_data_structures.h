@@ -32,7 +32,6 @@ typedef struct ChannelList {
     Channel *head;
     int count;
 } ChannelList;
-#endif
 
 User *create_user(const char *ip, in_port_t port, const char *username);
 int remove_user(UserList *user_list, const char *username);
@@ -48,3 +47,4 @@ void add_user_to_channel(Channel *channel, const char *ip, in_port_t port, const
 void remove_user_from_channel(Channel *channel, const char *username);
 
 void print_channels(const ChannelList *channel_list);
+#endif

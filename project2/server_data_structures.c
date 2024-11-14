@@ -23,8 +23,6 @@ void add_user(UserList *user_list, const char *ip, in_port_t port, const char *u
     user_list->head = new_user;
 }
 
-
-
 // Find user by username
 User *find_user_by_username(UserList *user_list, const char *username) {
     User *current = user_list->head;

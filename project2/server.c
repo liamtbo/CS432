@@ -8,15 +8,21 @@
 #include "server.h"
 #include <netdb.h> // gethostbyname
 
-
 int main(int argc, char *argv[]) {
-    // if (argc != 3) {
-    //     printf("error: format is ./server <hostname> <port>");
-    //     exit(EXIT_FAILURE);
-    // }
 
     char *host_name = argv[1];
     char *port = argv[2];
+
+    // char **addresses = (char **)malloc(sizeof(char *) * )
+    ServerAddrList server_addr_list;
+    memset(&server_addr_list, 0, sizeof(ServerAddrList));
+    populate_adjacent_servers(&server_addr_list, argv, argc);
+
+    ServerAddr *current = server_addr_list.head;
+    // while (current) {
+    //     printf("%s:%d\n", current->ip, current->port);
+    //     current = current->next;
+    // }
 
     struct sockaddr_in server_addr;
     // after declaring, server mem loc might have garbage values
@@ -97,6 +103,30 @@ int main(int argc, char *argv[]) {
             curr = curr->next;
         }
         printf("-------------------------");
+    }
+    // free_adjacent_servers(&server_addr_list);
+}
+
+// holds all adjacent servers
+void populate_adjacent_servers(ServerAddrList *server_addr_list, char **argv, int argc) {
+    // ServerAddr new_server_addr;
+    for (int i = 3; i < argc; i++) {
+        ServerAddr *new_server = (ServerAddr *)malloc(sizeof(ServerAddr));
+        strncpy(new_server->ip, argv[i], INET_ADDRSTRLEN);
+        new_server->port = atoi(argv[++i]);
+        new_server->next = server_addr_list->head;
+        server_addr_list->head = new_server;
+        server_addr_list->count++;
+    }
+}
+
+void free_adjacent_servers(ServerAddrList *server_addr_list) {
+    ServerAddr *current = server_addr_list->head;
+    ServerAddr *temp;
+    while (current) {
+        temp = current->next; 
+        free(current);
+        current = temp;
     }
 }
 
