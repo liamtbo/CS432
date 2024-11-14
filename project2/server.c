@@ -10,10 +10,10 @@
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("error: format is ./server <hostname> <port>");
-        exit(EXIT_FAILURE);
-    }
+    // if (argc != 3) {
+    //     printf("error: format is ./server <hostname> <port>");
+    //     exit(EXIT_FAILURE);
+    // }
 
     char *host_name = argv[1];
     char *port = argv[2];
@@ -52,8 +52,8 @@ int main(int argc, char *argv[]) {
 
     ChannelList channel_list = {NULL};
     UserList user_list = {NULL};
-    add_channel(&channel_list, "Common");
-    channel_list.count += 1;
+    // add_channel(&channel_list, "Common");
+    // channel_list.count += 1;
 
     while (1) {
         int bytes_returned = recvfrom(s, buffer, sizeof(buffer), 0, (struct sockaddr *)&client, &client_len);
@@ -96,8 +96,6 @@ int main(int argc, char *argv[]) {
             printf("users in user list: %s\n", curr->username);
             curr = curr->next;
         }
-        // printf("does user exist in user list: %s\n", current->username);
-
         printf("-------------------------");
     }
 }
@@ -130,6 +128,7 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
     }
 }
 
+// TODO channel list isn't being upated - /leave Common, /exit removes Common
 void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *client, ChannelList *channel_list) {
     struct request_leave *req_leave = (struct request_leave *)req;
     User *user = find_user_by_ip_port(user_list, ip_str, ntohs(client->sin_port));
@@ -137,7 +136,7 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
     if (specified_channel != NULL) {
         printf("server: %s leaves channel %s\n", user->username, specified_channel->name);
         remove_user_from_channel(specified_channel, user->username);
-        specified_channel->count -= 1;
+        // specified_channel->count -= 1;
         if (specified_channel->count == 0) {
             printf("server: removing empty channel %s\n", specified_channel->name);
             remove_channel(channel_list, specified_channel->name);
@@ -177,7 +176,7 @@ void logout(UserList *user_list, char *ip_str, struct sockaddr_in *client, Chann
     Channel *current = channel_list->head;
     while (current) {
         remove_user_from_channel(current, user->username);
-        current->count -= 1;
+        // current->count -= 1;
         if (current->count == 0) {
             remove_channel(channel_list, current->name);
         }
@@ -186,148 +185,3 @@ void logout(UserList *user_list, char *ip_str, struct sockaddr_in *client, Chann
     remove_user(user_list, user->username);
 }
 
-// Create a new user
-User *create_user(const char *ip, in_port_t port, const char *username) {
-    User *new_user = (User *)malloc(sizeof(User));
-    if (new_user) {
-        strncpy(new_user->ip, ip, INET_ADDRSTRLEN);
-        new_user->port = port;
-        strncpy(new_user->username, username, USERNAME_LEN);
-        new_user->next = NULL;
-    }
-    return new_user;
-}
-
-// Add a user to a UserList
-void add_user(UserList *user_list, const char *ip, in_port_t port, const char *username) {
-    User *new_user = create_user(ip, port, username);
-    new_user->next = user_list->head;
-    user_list->head = new_user;
-}
-
-// Remove a user from UserList by username
-void remove_user(UserList *user_list, const char *username) {
-    User *current = user_list->head, *previous = NULL;
-    // printf("current->username: %s\n", current->username);
-    // printf("username1: %s\n", username);
-    while (current) {
-        if (strcmp(current->username, username) == 0) {
-            // printf("seg?\n");
-            if (previous) {
-                previous->next = current->next;
-            } else {
-                user_list->head = current->next;   
-            }
-            free(current);
-            return;
-        }
-        // printf("seg?\n");
-        previous = current;
-        current = current->next;
-    }
-}
-
-// Find user by username
-User *find_user_by_username(UserList *user_list, const char *username) {
-    User *current = user_list->head;
-    while (current) {
-        if (strcmp(current->username, username) == 0) {
-            return current;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
-
-// Find user by IP and port
-User *find_user_by_ip_port(UserList *user_list, const char *ip, in_port_t port) {
-    User *current = user_list->head;
-    while (current) {
-        // printf("does user exist in user list: %s\n", current->username);
-        if (strcmp(current->ip, ip) == 0 && current->port == port) {
-            return current;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
-
-// Create a new channel
-Channel *create_channel(const char *name) {
-    Channel *new_channel = (Channel *)malloc(sizeof(Channel));
-    if (new_channel) {
-        strncpy(new_channel->name, name, USERNAME_LEN);
-        new_channel->users.head = NULL;
-        new_channel->next = NULL;
-    }
-    return new_channel;
-}
-
-// Add a channel to a ChannelList
-void add_channel(ChannelList *channel_list, const char *name) {
-    Channel *new_channel = create_channel(name);
-    new_channel->next = channel_list->head;
-    channel_list->head = new_channel;
-}
-
-// Remove a channel from ChannelList by name
-void remove_channel(ChannelList *channel_list, const char *name) {
-    Channel *current = channel_list->head, *previous = NULL;
-    while (current) {
-        if (strcmp(current->name, name) == 0) {
-            if (previous) {
-                previous->next = current->next;
-            } else {
-                channel_list->head = current->next;
-            }
-            free(current);
-            return;
-        }
-        previous = current;
-        current = current->next;
-    }
-}
-
-// Find a channel by name
-Channel *find_channel(ChannelList *channel_list, const char *name) {
-    Channel *current = channel_list->head;
-    while (current) {
-        if (strcmp(current->name, name) == 0) {
-            return current;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
-
-// Add a user to a channel
-void add_user_to_channel(Channel *channel, const char *ip, in_port_t port, const char *username) {
-    add_user(&channel->users, ip, port, username);
-}
-
-// Remove a user from a channel
-void remove_user_from_channel(Channel *channel, const char *username) {
-    // printf("here: %s\n", channel->users.head->username);
-    remove_user(&(channel->users), username);
-}
-
-void print_channels(const ChannelList *channel_list) {
-    Channel *current_channel = channel_list->head;
-    
-    // Traverse through each channel
-    while (current_channel) {
-        printf("Channel: %s\n", current_channel->name);
-
-        // Traverse through each user in the current channel
-        User *current_user = current_channel->users.head;
-        while (current_user) {
-            printf("  User: %s, IP: %s, Port: %d\n", 
-                   current_user->username, 
-                   current_user->ip, 
-                   current_user->port);
-            current_user = current_user->next;
-        }
-        
-        current_channel = current_channel->next;
-    }
-}
