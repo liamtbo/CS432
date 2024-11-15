@@ -48,6 +48,30 @@ typedef int text_t;
 #define TXT_WHO 2
 #define TXT_ERROR 3
 
+/* Define codes for S2S types */
+// continued from req for simplicity
+#define S2S_SAY 8
+#define S2S_JOIN 9
+#define S2S_LEAVE 10
+
+struct s2s_say {
+    request_t req_type;
+    long int id;
+    char username[USERNAME_MAX];
+    char channel[CHANNEL_MAX];
+    char text[SAY_MAX];
+} packed;
+
+// struct s2s_join {
+//     request_t req_type;
+//     char channel[CHANNEL_MAX];
+// } packed;
+
+// struct s2s_leave {
+//     request_t req_type;
+//     char channel[CHANNEL_MAX];
+// } packed;
+
 /* This structure is used for a generic request type, to the server. */
 struct request {
         request_t req_type;

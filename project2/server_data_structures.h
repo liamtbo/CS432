@@ -19,12 +19,23 @@ typedef struct UserList {
     User *head;
 } UserList;
 
+typedef struct ServerTime {
+    struct sockaddr_in *server;
+    int time; // TODO update larer to real time type
+    struct ServerTime *next;
+} ServerTime;
+
+typedef struct ServerTimeList {
+    ServerTime *head;
+} ServerTimeList;
+
 // Struct for Channel, which contains a name and a list of users
 typedef struct Channel {
     char name[USERNAME_LEN];
     UserList users;  // Linked list of users in this channel
     struct Channel *next;  // Pointer for linked list of channels
     int count; // count number of users in channel
+    ServerTimeList server_time_list;
 } Channel;
 
 // Linked list of Channels
