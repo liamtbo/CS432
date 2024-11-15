@@ -1,0 +1,8 @@
+foreground running processes
+    jobs
+background running processes
+    ps aux | grep server
+kill process
+    kill <PID>
+if all processes being killed are of the same name
+    pkill <process name>

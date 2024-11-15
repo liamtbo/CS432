@@ -62,15 +62,15 @@ struct s2s_say {
     char text[SAY_MAX];
 } packed;
 
-// struct s2s_join {
-//     request_t req_type;
-//     char channel[CHANNEL_MAX];
-// } packed;
+struct s2s_join {
+    request_t req_type;
+    char channel[CHANNEL_MAX];
+} packed;
 
-// struct s2s_leave {
-//     request_t req_type;
-//     char channel[CHANNEL_MAX];
-// } packed;
+struct s2s_leave {
+    request_t req_type;
+    char channel[CHANNEL_MAX];
+} packed;
 
 /* This structure is used for a generic request type, to the server. */
 struct request {

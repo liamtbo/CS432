@@ -27,22 +27,22 @@ int main(int argc, char *argv[]) {
     memset(&server_addr_list, 0, sizeof(ServerAddrList));
     create_adjacent_servers(&server_addr_list, argv, argc);
 
-    struct sockaddr_in server_addr;
+    struct sockaddr_in local_server_addr;
     // after declaring, server mem loc might have garbage values
     // this might mess up padding
-    memset(&server_addr, 0, sizeof(struct sockaddr_in));
-    server_addr.sin_family = AF_INET; // IPv4 internet protocol
-    server_addr.sin_port = htons(atoi(port)); // local port 5000
+    memset(&local_server_addr, 0, sizeof(struct sockaddr_in));
+    local_server_addr.sin_family = AF_INET; // IPv4 internet protocol
+    local_server_addr.sin_port = htons(atoi(port)); // local port 5000
     // Use "127.0.0.1" if host_name is "localhost"
     // Convert hostname to IP address
-    if (inet_pton(AF_INET, host_name, &server_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, host_name, &local_server_addr.sin_addr) <= 0) {
         // If the hostname is not an IP address, try to resolve it
         struct hostent *host = gethostbyname(host_name);
         if (host == NULL) {
             perror("gethostbyname");
             exit(EXIT_FAILURE);
         }
-        memcpy(&server_addr.sin_addr, host->h_addr_list[0], host->h_length);
+        memcpy(&local_server_addr.sin_addr, host->h_addr_list[0], host->h_length);
     }
 
     // allocates a socket and returns a descriptor
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     if (s < 0) { perror("Error calling socket()"); exit(EXIT_FAILURE);}
 
     // bind socket to specific IP addr and port so it can listen for packet_src connections
-    int b = bind(s, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    int b = bind(s, (struct sockaddr *)&local_server_addr, sizeof(local_server_addr));
     if (b < 0) { perror("Error calling bind()"); exit(EXIT_FAILURE);}
 
     char buffer[sizeof(struct request_say)];  // Use the size of the largest struct
@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
                 int bytes_returned = recvfrom(s, buffer, sizeof(buffer), 0, (struct sockaddr *)&packet_src, &client_len);
                 if (bytes_returned > 0) {
                     buffer[bytes_returned] = '\0';
-                    process_requests(&packet_src, &user_list, &channel_list, s, buffer, &server_addr_list);
+                    process_requests(&packet_src, &user_list, &channel_list, s, buffer, &server_addr_list, &local_server_addr);
                 }
                 if (bytes_returned < 0) {
                     perror("recvfrom failed");
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
 
 void process_requests(struct sockaddr_in *packet_src, UserList *user_list, 
                         ChannelList *channel_list, int s, char *buffer, 
-                        ServerAddrList *server_addr_list) {
+                        ServerAddrList *server_addr_list, struct sockaddr_in *local_server_addr) {
     // Print the IP address
     char ip_str[INET_ADDRSTRLEN]; // Buffer for the IP string
     // converts IP from binary form (net byte order) to readable string
@@ -117,8 +117,8 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
         logout(user_list, ip_str, packet_src, channel_list);
 
     } else if (req->req_type == REQ_JOIN) {
-        join(req, user_list, ip_str, packet_src, channel_list);
-
+        join(req, user_list, ip_str, packet_src, channel_list, server_addr_list, s, local_server_addr);
+        printf("are we joining?\n");
     } else if (req->req_type == REQ_LEAVE) {
         leave(req, user_list, ip_str, packet_src, channel_list);
         
@@ -127,9 +127,7 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
 
     } else if (req->req_type == REQ_LIST) {
         printf("server: listing channels is not supported\n");
-
-    }
-    else if (req->req_type == REQ_WHO) { 
+    } else if (req->req_type == REQ_WHO) { 
         printf("server: who is in channel is not supported\n");
     }
     print_channels(channel_list);
@@ -138,7 +136,7 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
         printf("users in user list: %s\n", curr->username);
         curr = curr->next;
     }
-    printf("-------------------------");
+    printf("-------------------------\n");
 }
 
 // holds all adjacent servers
@@ -219,38 +217,61 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
     }
 }
 
-// void s2sjoin() {
-//     // send join to adjacent servers and add their server ID's to local channel
-//     ServerAddr *current_send = server_addr_list->head;
-//     while (current_send) {
-//         if (sendto(s, &req_join, sizeof(req_join), 0, (struct sockaddr *)(&current_send->server_address), sizeof(current_send->server_address)) < 0) {
-//             perror("sendto error");
-//             exit(EXIT_FAILURE);
-//         }
-//         current_send = current_send->next;
-//     }
-// }
-
+/*handles both client packets and server2server packets
+Tells the difference by checking if user exists in database or not*/
 void join(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, 
-        ChannelList *channel_list) {
+        ChannelList *channel_list, ServerAddrList *server_addr_list, int s, struct sockaddr_in *local_server_addr) {
     struct request_join *req_join = (struct request_join *)req;
     User *user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
-    printf("server: %s join channel %s\n", user->username, req_join->req_channel);
+    
+    // conversion for printing
+    char local_ip_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &local_server_addr->sin_addr, local_ip_str, INET_ADDRSTRLEN);
+    char src_ip_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &packet_src->sin_addr, src_ip_str, INET_ADDRSTRLEN);
+
+    if (user) {
+        printf("%s:%d %s:%d recv Request join %s %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+                src_ip_str, ntohs(packet_src->sin_port), user->username, req_join->req_channel);
+    }
+    else {
+        printf("%s:%d %s:%d recv S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+                src_ip_str, ntohs(packet_src->sin_port), req_join->req_channel);
+    }
+
     // Channel *head_channel = channel_list.head;
     Channel *specified_channel = find_channel(channel_list, req_join->req_channel);
     // if channel found
     if (specified_channel) {
-        add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
-        specified_channel->count += 1;
+        // if user doesn't exist, packet_src is another server
+        if (user) {
+            add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
+            specified_channel->count += 1;
+        }
     }
     // if channel not found
     else {
+        // send join to adjacent servers and add their server ID's to local channel
+        ServerAddr *current_send = server_addr_list->head;
+        while (current_send) {
+            char ip_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &current_send->server_address.sin_addr, ip_str, INET6_ADDRSTRLEN);
+            // printf("log: sending join to %s:%d\n", ip_str, ntohs(current_send->server_address.sin_port));
+            if (sendto(s, req_join, sizeof(*req_join), 0, (struct sockaddr *)(&current_send->server_address), sizeof(current_send->server_address)) < 0) {
+                perror("sendto error");
+                exit(EXIT_FAILURE);
+            }
+            current_send = current_send->next;
+        }
         // adding channel
         add_channel(channel_list, req_join->req_channel);
-        specified_channel = find_channel(channel_list, req_join->req_channel);
-        add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
         channel_list->count += 1;
-        specified_channel->count += 1;
+        // if user doesn't exist, packet_src is another server
+        if (user) {
+            specified_channel = find_channel(channel_list, req_join->req_channel);
+            add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
+            specified_channel->count += 1;
+        }
     }
 }
 
