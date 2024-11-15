@@ -118,7 +118,6 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
 
     } else if (req->req_type == REQ_JOIN) {
         join(req, user_list, ip_str, packet_src, channel_list, server_addr_list, s, local_server_addr);
-        printf("are we joining?\n");
     } else if (req->req_type == REQ_LEAVE) {
         leave(req, user_list, ip_str, packet_src, channel_list);
         
@@ -130,13 +129,13 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
     } else if (req->req_type == REQ_WHO) { 
         printf("server: who is in channel is not supported\n");
     }
-    print_channels(channel_list);
-    User *curr = user_list->head;
-    while (curr) {
-        printf("users in user list: %s\n", curr->username);
-        curr = curr->next;
-    }
-    printf("-------------------------\n");
+    // print_channels(channel_list);
+    // User *curr = user_list->head;
+    // while (curr) {
+    //     printf("users in user list: %s\n", curr->username);
+    //     curr = curr->next;
+    // }
+    // printf("-------------------------\n");
 }
 
 // holds all adjacent servers
@@ -230,17 +229,20 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
     char src_ip_str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &packet_src->sin_addr, src_ip_str, INET_ADDRSTRLEN);
 
+    // Channel *head_channel = channel_list.head;
+    Channel *specified_channel = find_channel(channel_list, req_join->req_channel);
+
+    // if packet src is sent from a user
     if (user) {
         printf("%s:%d %s:%d recv Request join %s %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
                 src_ip_str, ntohs(packet_src->sin_port), user->username, req_join->req_channel);
     }
-    else {
+    // if packet src is a another server and the channel doesn't exist locally
+    if (!user && !specified_channel) {
         printf("%s:%d %s:%d recv S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
                 src_ip_str, ntohs(packet_src->sin_port), req_join->req_channel);
     }
 
-    // Channel *head_channel = channel_list.head;
-    Channel *specified_channel = find_channel(channel_list, req_join->req_channel);
     // if channel found
     if (specified_channel) {
         // if user doesn't exist, packet_src is another server
@@ -254,12 +256,19 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         // send join to adjacent servers and add their server ID's to local channel
         ServerAddr *current_send = server_addr_list->head;
         while (current_send) {
-            char ip_str[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &current_send->server_address.sin_addr, ip_str, INET6_ADDRSTRLEN);
-            // printf("log: sending join to %s:%d\n", ip_str, ntohs(current_send->server_address.sin_port));
-            if (sendto(s, req_join, sizeof(*req_join), 0, (struct sockaddr *)(&current_send->server_address), sizeof(current_send->server_address)) < 0) {
-                perror("sendto error");
-                exit(EXIT_FAILURE);
+            char curr_send_ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &current_send->server_address.sin_addr, curr_send_ip, INET_ADDRSTRLEN);
+
+            // don't send join to server that just sent you join
+            // only need to check port number I believe
+            // printf("curr send port: %d\n", ntohs(current_send->server_address.sin_port));
+            if (ntohs(current_send->server_address.sin_port) != ntohs(packet_src->sin_port)) {
+                printf("%s:%d %s:%d send S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+                    curr_send_ip, ntohs(current_send->server_address.sin_port), req_join->req_channel);
+                if (sendto(s, req_join, sizeof(*req_join), 0, (struct sockaddr *)(&current_send->server_address), sizeof(current_send->server_address)) < 0) {
+                    perror("sendto error");
+                    exit(EXIT_FAILURE);
+                }
             }
             current_send = current_send->next;
         }
