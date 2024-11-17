@@ -2,6 +2,7 @@
 #define SERVER_LINKED_LIST_H
 
 #include <netinet/in.h> // in_port_t and in_addr
+#include <time.h>
 
 #define USERNAME_LEN 50
 
@@ -10,7 +11,6 @@ typedef struct User {
     char ip[INET_ADDRSTRLEN];
     in_port_t port;
     char username[USERNAME_LEN];
-
     struct User *next;  // Pointer for linked list
 } User;
 
@@ -21,7 +21,7 @@ typedef struct UserList {
 
 typedef struct ServerAndTime {
     struct ServerAddr *server;
-    int time; // TODO update larer to real time type
+    time_t time; // TODO update larer to real time type
     struct ServerAndTime *next;
 } ServerAndTime;
 

@@ -242,6 +242,17 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
                 src_ip_str, ntohs(packet_src->sin_port), req_join->req_channel);
     }
 
+    // PE !! placement might not get all the join, we'll see
+    // if packet src is a server and channel exists
+    if (!user && specified_channel) {
+        // Channel *channel = find_channel(channel_list, req_join->req_channel);
+        ServerAndTime *join_src_server = find_server(&specified_channel->server_time_list, packet_src);
+        // if server is already subbed to channel, update its time
+        if (join_src_server) {
+            join_src_server->time = time(NULL);
+        }
+    }
+
     // if channel found
     if (specified_channel) {
         // if user doesn't exist, packet_src is another server
@@ -249,6 +260,7 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
             specified_channel->count += 1;
         }
+
     }
     // if channel not found
     else {
@@ -256,6 +268,14 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         add_channel(channel_list, req_join->req_channel);
         channel_list->count += 1;
         specified_channel = find_channel(channel_list, req_join->req_channel);
+
+        // add src_packet server to channels subbed servers
+        ServerAddr packet_src_server;
+        memcpy(&packet_src_server.server_address, packet_src, sizeof(struct sockaddr_in));
+        packet_src_server.next = NULL;
+        
+        sub_server_to_channel(&packet_src_server, specified_channel);
+
         // if user doesn't exist, packet_src is another server
         if (user) {
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
@@ -282,7 +302,7 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
             }
             // if dst server is not in channels list of subbed servers, sub dst server and send join
             // printf("dst_server_in_channels_servers_flag: %d\n", dst_server_in_channels_servers_flag);
-            if (!dst_server_in_channels_servers_flag && ntohs(dst_server->server_address.sin_port) != ntohs(packet_src->sin_port)) {
+            if (!dst_server_in_channels_servers_flag) {
                 // printf("here\n");
                 // printf("dst server %d is not in channels servers\n", ntohs(dst_server->server_address.sin_port));
                 // if server is not already subbed to specified channel
@@ -294,16 +314,34 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
                     perror("sendto error");
                     exit(EXIT_FAILURE);
                 }
-                // TODO: populating and adding to linked list
-                // printf("local %d adding dst_server %d to subbed list\n", ntohs(local_server_addr->sin_port), ntohs(dst_server->server_address.sin_port));
-                ServerAndTime *new_server_and_time = (ServerAndTime *)malloc(sizeof(ServerAndTime));
-                new_server_and_time->server = dst_server;
-                new_server_and_time->next = specified_channel->server_time_list.head;
-                specified_channel->server_time_list.head = new_server_and_time;
+                sub_server_to_channel(dst_server, specified_channel);
             }
             dst_server = dst_server->next;
         }
     }
+}
+
+ServerAndTime *find_server(ServerAndTimeList *server_time_list, struct sockaddr_in *target_server) {
+    ServerAndTime *curr_server = server_time_list->head;
+
+    while (curr_server) {
+        // Compare IP address and port
+        if (curr_server->server->server_address.sin_addr.s_addr == target_server->sin_addr.s_addr &&
+            curr_server->server->server_address.sin_port == target_server->sin_port) {
+            return curr_server; // Found the server
+        }
+        curr_server = curr_server->next;
+    }
+    return NULL; // Server not found
+}
+
+
+void sub_server_to_channel(ServerAddr *server, Channel *specified_channel) {
+    ServerAndTime *new_server_and_time = (ServerAndTime *)malloc(sizeof(ServerAndTime));
+    new_server_and_time->server = server;
+    new_server_and_time->time = time(NULL);
+    new_server_and_time->next = specified_channel->server_time_list.head;
+    specified_channel->server_time_list.head = new_server_and_time;
 }
 
 void logout(UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list) {

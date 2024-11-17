@@ -16,7 +16,8 @@ typedef struct ServerAddrList {
     int count;
 } ServerAddrList;
 
-
+ServerAndTime *find_server(ServerAndTimeList *server_time_list, struct sockaddr_in *target_server);
+void sub_server_to_channel(ServerAddr *server, Channel *specified_channel);
 void create_adjacent_servers(ServerAddrList *server_addr_list, char **argv, int argc);
 void setup_server_addr(struct sockaddr_in *server_addr, char *host_name, char *port);
 
