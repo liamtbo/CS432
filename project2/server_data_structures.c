@@ -55,6 +55,7 @@ Channel *create_channel(const char *name) {
         strncpy(new_channel->name, name, USERNAME_LEN);
         new_channel->users.head = NULL;
         new_channel->next = NULL;
+        new_channel->server_time_list.head = NULL;
     }
     return new_channel;
 }
