@@ -45,3 +45,12 @@ while 1
 
         if s2s server_x leave channel
             channel_servers_map[channel].remove(server_x)
+
+
+say()
+    if this packet is a client say
+        populate text_say respectively
+    if this packet is a 2s2 say
+        populate text_say respectively
+    send say to all local users on channel
+    sends s2s say to all servrs subbed to channel

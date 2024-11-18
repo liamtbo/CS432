@@ -11,6 +11,7 @@
 #include <errno.h> // errno and EINTR
 
 
+
 int main(int argc, char *argv[]) {
 
     if (argc % 2 == 0) {
@@ -80,7 +81,8 @@ int main(int argc, char *argv[]) {
             if (FD_ISSET(s, &read_fds)) {
                 int bytes_returned = recvfrom(s, buffer, sizeof(buffer), 0, (struct sockaddr *)&packet_src, &client_len);
                 if (bytes_returned > 0) {
-                    buffer[bytes_returned] = '\0';
+                    // buffer[bytes_returned] = '\0';
+                    printf("main packet src: %d\n", ntohs(packet_src.sin_port));
                     process_requests(&packet_src, &user_list, &channel_list, s, buffer, &server_addr_list, &local_server_addr);
                 }
                 if (bytes_returned < 0) {
@@ -121,8 +123,9 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
     } else if (req->req_type == REQ_LEAVE) {
         leave(req, user_list, ip_str, packet_src, channel_list);
         
-    } else if (req->req_type == REQ_SAY) {
-        say(req, s, user_list, ip_str, packet_src, channel_list);
+    } else if (req->req_type == REQ_SAY || req->req_type == S2S_SAY) {
+        printf("process reqs packet src: %d\n", ntohs(packet_src->sin_port));
+        say(req, s, user_list, ip_str, packet_src, channel_list, local_server_addr);
 
     } else if (req->req_type == REQ_LIST) {
         printf("server: listing channels is not supported\n");
@@ -142,6 +145,10 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
 void create_adjacent_servers(ServerAddrList *server_addr_list, char **argv, int argc) {
     for (int i = 3; i < argc; i++) {
         ServerAddr *new_server = (ServerAddr *)malloc(sizeof(ServerAddr));
+        if (new_server == NULL) {
+            perror("malloc failed");
+            exit(EXIT_FAILURE);
+        }
         char *ip = argv[i];
         char *port = argv[++i];
         setup_server_addr(&new_server->server_address, ip, port);
@@ -170,19 +177,49 @@ void setup_server_addr(struct sockaddr_in *server_addr, char *host_name, char *p
     }
 }
 
-void say(struct request *req, int s, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list) {
-    struct request_say *req_say = (struct request_say *)req;
-    User *user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
-    printf("server: %s sends say message in %s\n", user->username, req_say->req_channel);
-    struct text_say txt_say;
-    txt_say.txt_type = 0;
-    strcpy(txt_say.txt_channel, req_say->req_channel);
-    strcpy(txt_say.txt_username, user->username);
-    strcpy(txt_say.txt_text, req_say->req_text);
+void say(struct request *req, int s, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, 
+        ChannelList *channel_list, struct sockaddr_in *local_server_addr) {
+    printf("say beggining packet src: %d\n", ntohs(packet_src->sin_port));
 
-    Channel *specified_channel = find_channel(channel_list, req_say->req_channel);
+    struct text_say txt_say;
+    struct s2s_say *s2sSay = (struct s2s_say *)malloc(sizeof(struct s2s_say));
+    if (s2sSay == NULL) {
+        perror("malloc failed");
+        exit(EXIT_FAILURE);
+    }
+    memset(s2sSay, 0, sizeof(*s2sSay));
+
+    // if packet_src is from user
+    if (req->req_type == REQ_SAY) {
+        struct request_say *req_say = (struct request_say *)req;
+        User *user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
+        printf("server: %s sends say message in %s\n", user->username, req_say->req_channel);
+        txt_say.txt_type = 0;
+        strcpy(txt_say.txt_channel, req_say->req_channel);
+        strcpy(txt_say.txt_username, user->username);
+        strcpy(txt_say.txt_text, req_say->req_text);
+
+        s2sSay->req_type = S2S_SAY;
+        s2sSay->id = get_urandom();
+        strncpy(s2sSay->username, user->username, USERNAME_MAX);
+        strncpy(s2sSay->channel, req_say->req_channel, CHANNEL_MAX);
+        strncpy(s2sSay->text, req_say->req_text, SAY_MAX);
+    }
+    // if packet_src is from other server
+    else if (req->req_type == S2S_SAY) {
+        // todo: check packet against recent IDs
+        memcpy(s2sSay, (struct s2s_say *)req, sizeof(struct s2s_say));
+        txt_say.txt_type = 0;
+        strncpy(txt_say.txt_channel, s2sSay->channel, CHANNEL_MAX);
+        strncpy(txt_say.txt_username, s2sSay->username, USERNAME_MAX);
+        strncpy(txt_say.txt_text, s2sSay->text, SAY_MAX);
+    } 
+
+    // send message to all user on local server
+    Channel *specified_channel = find_channel(channel_list, txt_say.txt_channel);
     UserList channels_users = specified_channel->users;
     User *current_user = channels_users.head;
+    int original_packet_src = packet_src->sin_port;
     while (current_user) {
         packet_src->sin_port = htons(current_user->port);
         // converts IPV4 from text to binary form
@@ -196,6 +233,43 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         }
         current_user = current_user->next;
     }
+    packet_src->sin_port = original_packet_src;
+    printf("calling say:\n");
+    print_server_ports(channel_list, local_server_addr);
+    printf("---------------------\n");
+
+    printf("say before server dis packet src: %d\n", ntohs(packet_src->sin_port));
+
+    // send s2s say message
+    ServerAndTime *dst_server = specified_channel->server_time_list.head;
+    while (dst_server) {
+        printf("local server %d\n\tpacket_src %d --> dst_server %d\n", ntohs(local_server_addr->sin_port), ntohs(packet_src->sin_port), ntohs(dst_server->server->server_address.sin_port));
+        if (ntohs(dst_server->server->server_address.sin_port) != ntohs(packet_src->sin_port)) {
+            printf("local server %d sending to dst server %d\n", ntohs(local_server_addr->sin_port), ntohs(dst_server->server->server_address.sin_port));
+            if (sendto(s, s2sSay, sizeof(*s2sSay), 0, (struct sockaddr *)&dst_server->server->server_address, sizeof(dst_server->server->server_address)) < 0) {
+                printf("is it here in local server %d\n", ntohs(local_server_addr->sin_port));
+                perror("sendto error");
+            }
+        } 
+        dst_server = dst_server->next;
+    }
+    free(s2sSay);
+}
+
+unsigned int get_urandom() {
+    FILE *urandom = fopen("/dev/urandom", "rb");
+    if (urandom == NULL) {
+        perror("Failed to open /dev/urandom");
+        return EXIT_FAILURE;
+    }
+    unsigned int random_value;
+    if (fread(&random_value, sizeof(random_value), 1, urandom) != 1) {
+        perror("Failed to read from /dev/urandom");
+        fclose(urandom);
+        return EXIT_FAILURE;
+    }
+    fclose(urandom);
+    return random_value;
 }
 
 void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list) {
@@ -270,11 +344,13 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         specified_channel = find_channel(channel_list, req_join->req_channel);
 
         // add src_packet server to channels subbed servers
-        ServerAddr packet_src_server;
-        memcpy(&packet_src_server.server_address, packet_src, sizeof(struct sockaddr_in));
-        packet_src_server.next = NULL;
+        ServerAddr *packet_src_server = (ServerAddr *)malloc(sizeof(ServerAddr));
+        memcpy(&packet_src_server->server_address, packet_src, sizeof(struct sockaddr_in));
+        packet_src_server->next = NULL;
         
-        sub_server_to_channel(&packet_src_server, specified_channel);
+        if (!user) {
+            sub_server_to_channel(packet_src_server, specified_channel);
+        }
 
         // if user doesn't exist, packet_src is another server
         if (user) {
@@ -303,7 +379,6 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
             // if dst server is not in channels list of subbed servers, sub dst server and send join
             // printf("dst_server_in_channels_servers_flag: %d\n", dst_server_in_channels_servers_flag);
             if (!dst_server_in_channels_servers_flag) {
-                // printf("here\n");
                 // printf("dst server %d is not in channels servers\n", ntohs(dst_server->server_address.sin_port));
                 // if server is not already subbed to specified channel
                 char curr_send_ip[INET_ADDRSTRLEN];
@@ -319,7 +394,51 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
             dst_server = dst_server->next;
         }
     }
+
+    // print_server_ports(channel_list, local_server_addr);
+    // printf("---------------------\n");
 }
+
+void print_server_ports(ChannelList *channel_list, struct sockaddr_in *local_server_addr) {
+    // Check if the channel list is valid
+    if (channel_list == NULL || channel_list->head == NULL) {
+        printf("Channel list is empty.\n");
+        return;
+    }
+
+    Channel *current_channel = channel_list->head;
+    printf("local server: %d\n", ntohs(local_server_addr->sin_port));
+    // Loop through each channel in the list
+    while (current_channel != NULL) {
+        printf("\tChannel: %s\n", current_channel->name);
+
+        // Get the server time list from the current channel
+        ServerAndTime *current_server_time = current_channel->server_time_list.head;
+
+        // Loop through each ServerAndTime entry
+        while (current_server_time != NULL) {
+            // Extract the ServerAddr structure
+            ServerAddr *current_server = current_server_time->server;
+
+            // Loop through all ServerAddr nodes
+            while (current_server != NULL) {
+                // Print out the port number (using ntohs to handle network byte order)
+                int port = ntohs(current_server->server_address.sin_port);
+                printf("\t\tServer Port: %d\n", port);
+
+                // Move to the next ServerAddr in the linked list
+                current_server = current_server->next;
+            }
+
+            // Move to the next ServerAndTime entry
+            current_server_time = current_server_time->next;
+        }
+
+        // Move to the next channel in the list
+        current_channel = current_channel->next;
+    }
+}
+
 
 ServerAndTime *find_server(ServerAndTimeList *server_time_list, struct sockaddr_in *target_server) {
     ServerAndTime *curr_server = server_time_list->head;
@@ -338,6 +457,10 @@ ServerAndTime *find_server(ServerAndTimeList *server_time_list, struct sockaddr_
 
 void sub_server_to_channel(ServerAddr *server, Channel *specified_channel) {
     ServerAndTime *new_server_and_time = (ServerAndTime *)malloc(sizeof(ServerAndTime));
+    if (new_server_and_time == NULL) {
+        perror("malloc failed");
+        exit(EXIT_FAILURE);
+    }
     new_server_and_time->server = server;
     new_server_and_time->time = time(NULL);
     new_server_and_time->next = specified_channel->server_time_list.head;
