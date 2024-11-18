@@ -82,7 +82,6 @@ int main(int argc, char *argv[]) {
                 int bytes_returned = recvfrom(s, buffer, sizeof(buffer), 0, (struct sockaddr *)&packet_src, &client_len);
                 if (bytes_returned > 0) {
                     // buffer[bytes_returned] = '\0';
-                    printf("main packet src: %d\n", ntohs(packet_src.sin_port));
                     process_requests(&packet_src, &user_list, &channel_list, s, buffer, &server_addr_list, &local_server_addr);
                 }
                 if (bytes_returned < 0) {
@@ -124,7 +123,6 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
         leave(req, user_list, ip_str, packet_src, channel_list);
         
     } else if (req->req_type == REQ_SAY || req->req_type == S2S_SAY) {
-        printf("process reqs packet src: %d\n", ntohs(packet_src->sin_port));
         say(req, s, user_list, ip_str, packet_src, channel_list, local_server_addr);
 
     } else if (req->req_type == REQ_LIST) {
@@ -179,7 +177,6 @@ void setup_server_addr(struct sockaddr_in *server_addr, char *host_name, char *p
 
 void say(struct request *req, int s, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, 
         ChannelList *channel_list, struct sockaddr_in *local_server_addr) {
-    printf("say beggining packet src: %d\n", ntohs(packet_src->sin_port));
 
     struct text_say txt_say;
     struct s2s_say *s2sSay = (struct s2s_say *)malloc(sizeof(struct s2s_say));
@@ -213,6 +210,9 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         strncpy(txt_say.txt_channel, s2sSay->channel, CHANNEL_MAX);
         strncpy(txt_say.txt_username, s2sSay->username, USERNAME_MAX);
         strncpy(txt_say.txt_text, s2sSay->text, SAY_MAX);
+
+        printf("%d %d recv S2S say %s %s %s\n", ntohs(local_server_addr->sin_port), ntohs(packet_src->sin_port),
+        s2sSay->username, s2sSay->channel, s2sSay->text);
     } 
 
     // send message to all user on local server
@@ -234,20 +234,18 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         current_user = current_user->next;
     }
     packet_src->sin_port = original_packet_src;
-    printf("calling say:\n");
-    print_server_ports(channel_list, local_server_addr);
-    printf("---------------------\n");
-
-    printf("say before server dis packet src: %d\n", ntohs(packet_src->sin_port));
+    // printf("calling say:\n");
+    // print_server_ports(channel_list, local_server_addr);
+    // printf("---------------------\n");
 
     // send s2s say message
     ServerAndTime *dst_server = specified_channel->server_time_list.head;
     while (dst_server) {
-        printf("local server %d\n\tpacket_src %d --> dst_server %d\n", ntohs(local_server_addr->sin_port), ntohs(packet_src->sin_port), ntohs(dst_server->server->server_address.sin_port));
         if (ntohs(dst_server->server->server_address.sin_port) != ntohs(packet_src->sin_port)) {
-            printf("local server %d sending to dst server %d\n", ntohs(local_server_addr->sin_port), ntohs(dst_server->server->server_address.sin_port));
+            // todo put IP into log
+            printf("%d %d send S2S say %s %s %s\n", ntohs(local_server_addr->sin_port), ntohs(dst_server->server->server_address.sin_port),
+                    s2sSay->username, s2sSay->channel, s2sSay->text);
             if (sendto(s, s2sSay, sizeof(*s2sSay), 0, (struct sockaddr *)&dst_server->server->server_address, sizeof(dst_server->server->server_address)) < 0) {
-                printf("is it here in local server %d\n", ntohs(local_server_addr->sin_port));
                 perror("sendto error");
             }
         } 
@@ -334,7 +332,6 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
             specified_channel->count += 1;
         }
-
     }
     // if channel not found
     else {
