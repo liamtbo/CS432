@@ -34,7 +34,8 @@ typedef struct Channel {
     char name[USERNAME_LEN];
     UserList users;  // Linked list of users in this channel
     struct Channel *next;  // Pointer for linked list of channels
-    int count; // count number of users in channel
+    int user_count; // count number of users in channel
+    int server_count;
     ServerAndTimeList server_time_list;
 } Channel;
 

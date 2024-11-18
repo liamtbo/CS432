@@ -15,7 +15,7 @@ typedef struct ServerAddrList {
     int count;
 } ServerAddrList;
 
-
+int check_id(long int id);
 void print_server_ports(ChannelList *channel_list, struct sockaddr_in *local_server_addr);
 unsigned int get_urandom();
 ServerAndTime *find_server(ServerAndTimeList *server_time_list, struct sockaddr_in *target_server);

@@ -10,7 +10,9 @@
 #include <sys/select.h> // select(), fd_set
 #include <errno.h> // errno and EINTR
 
-
+long int *ID_LIST;
+int ID_COUNT = 0;
+int ID_LIST_SIZE = 128;
 
 int main(int argc, char *argv[]) {
 
@@ -19,6 +21,9 @@ int main(int argc, char *argv[]) {
         printf("error: wrong number of inputs\n");
         exit(EXIT_FAILURE);
     }
+    
+    ID_LIST = (long int *)malloc(sizeof(long int) * 128);
+
     char *host_name = argv[1];
     char *port = argv[2];
 
@@ -206,6 +211,23 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
     else if (req->req_type == S2S_SAY) {
         // todo: check packet against recent IDs
         memcpy(s2sSay, (struct s2s_say *)req, sizeof(struct s2s_say));
+
+        if (check_id(s2sSay->id)) {
+            return;
+        }
+        if (ID_COUNT == ID_LIST_SIZE) {
+            long int *temp = realloc(ID_LIST, ID_COUNT * 2 * sizeof(long int));
+            if (temp == NULL) {
+                perror("realloc failed");
+                free(ID_LIST); // Free the old list to prevent memory leak
+                exit(EXIT_FAILURE);
+            }
+            ID_LIST = temp;
+            ID_LIST_SIZE = ID_COUNT * 2;
+        }
+        ID_LIST[ID_COUNT] = s2sSay->id;
+        ID_COUNT++;
+
         txt_say.txt_type = 0;
         strncpy(txt_say.txt_channel, s2sSay->channel, CHANNEL_MAX);
         strncpy(txt_say.txt_username, s2sSay->username, USERNAME_MAX);
@@ -254,6 +276,16 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
     free(s2sSay);
 }
 
+// check if this packet was received recently
+int check_id(long int id) {
+    for (int i=0; i<ID_COUNT; i++) {
+        if (id == ID_LIST[i]) {
+            return 1; // this is a recent say packet
+        }
+    }
+    return 0;
+}
+
 unsigned int get_urandom() {
     FILE *urandom = fopen("/dev/urandom", "rb");
     if (urandom == NULL) {
@@ -278,7 +310,7 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
         printf("server: %s leaves channel %s\n", user->username, specified_channel->name);
         remove_user_from_channel(specified_channel, user->username);
         // specified_channel->count -= 1;
-        if (specified_channel->count == 0) {
+        if (specified_channel->user_count == 0) {
             printf("server: removing empty channel %s\n", specified_channel->name);
             remove_channel(channel_list, specified_channel->name);
         }
@@ -330,7 +362,7 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         // if user doesn't exist, packet_src is another server
         if (user) {
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
-            specified_channel->count += 1;
+            specified_channel->user_count += 1;
         }
     }
     // if channel not found
@@ -345,15 +377,22 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         memcpy(&packet_src_server->server_address, packet_src, sizeof(struct sockaddr_in));
         packet_src_server->next = NULL;
         
+        // if server sent this s2sSay message sub serve to channel
         if (!user) {
-            sub_server_to_channel(packet_src_server, specified_channel);
+            // if server isn't already subbed to channel
+            if (!find_server(&specified_channel->server_time_list, &packet_src_server->server_address)) {
+                sub_server_to_channel(packet_src_server, specified_channel);
+                specified_channel->server_count += 1;
+            }
         }
+        
 
-        // if user doesn't exist, packet_src is another server
+        // if user does exist, add user to channel
         if (user) {
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
-            specified_channel->count += 1;
+            specified_channel->user_count += 1;
         }
+
         // send join to adjacent servers and add their server ID's to local channel
         // for every adjacent server
         ServerAddr *dst_server = server_addr_list->head;
@@ -387,6 +426,7 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
                     exit(EXIT_FAILURE);
                 }
                 sub_server_to_channel(dst_server, specified_channel);
+                specified_channel->server_count += 1;
             }
             dst_server = dst_server->next;
         }
@@ -474,7 +514,7 @@ void logout(UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, C
     while (current) {
         remove_user_from_channel(current, user->username);
         // current->count -= 1;
-        if (current->count == 0) {
+        if (current->user_count == 0) {
             remove_channel(channel_list, current->name);
         }
         current = current->next;

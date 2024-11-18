@@ -106,7 +106,7 @@ void add_user_to_channel(Channel *channel, const char *ip, in_port_t port, const
 void remove_user_from_channel(Channel *channel, const char *username) {
     // printf("here: %s\n", channel->users.head->username);
     if (remove_user(&(channel->users), username)) {
-        channel->count -= 1;
+        channel->user_count -= 1;
     }
 
 }
