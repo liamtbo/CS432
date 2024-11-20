@@ -8,9 +8,9 @@ SERVER=./server
 SERVER_NAME=`echo $SERVER | sed 's#.*/\(.*\)#\1#g'`
 
 # Generate a simple two-server topology
-## listens on localhost:4000 and is aware of peer localhost:4001
+# listens on localhost:4000 and is aware of peer localhost:4001
 # $SERVER localhost 4000 localhost 4001 &
-## listens on localhost:4001 and is aware of peer localhost:4000
+# # listens on localhost:4001 and is aware of peer localhost:4000
 # $SERVER localhost 4001 localhost 4000 & 
 
 # Generate a capital-H shaped topology

@@ -15,6 +15,7 @@ typedef struct ServerAddrList {
     int count;
 } ServerAddrList;
 
+void unsub_server(Channel *specified_channel, struct sockaddr_in *packet_src, struct sockaddr_in *local_server_addr);
 int check_id(long int id);
 void print_server_ports(ChannelList *channel_list, struct sockaddr_in *local_server_addr);
 unsigned int get_urandom();
@@ -29,7 +30,7 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
 void join(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, 
         ChannelList *channel_list, ServerAddrList *server_addr_list, int s, struct sockaddr_in *local_server_addr);
 void say(struct request *req, int s, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list, struct sockaddr_in *local_server_addr);
-void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list);
+void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list, struct sockaddr_in *local_server_addr);
 void logout(UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list);
 
 
