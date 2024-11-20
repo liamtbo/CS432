@@ -99,6 +99,7 @@ int main(int argc, char *argv[]) {
         }
         // printf("testing blocking\n");
         // TODO: need to test how old joins are
+
     }
     // free_adjacent_servers(&server_addr_list);
 }
@@ -214,7 +215,6 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
     }
     // if packet_src is from other server
     else if (req->req_type == S2S_SAY) {
-        // todo: check packet against recent IDs
         memcpy(s2sSay, (struct s2s_say *)req, sizeof(struct s2s_say));
 
         if (check_id(s2sSay->id)) {
@@ -292,7 +292,6 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
     char dst_server_ip_str[INET_ADDRSTRLEN];
     while (dst_server) {
         if (ntohs(dst_server->server->server_address.sin_port) != ntohs(packet_src->sin_port)) {
-            // todo put IP into log
             inet_ntop(AF_INET, &dst_server->server->server_address.sin_addr, dst_server_ip_str, INET_ADDRSTRLEN);
             printf("%s:%d %s:%d send S2S say %s %s %s\n", local_ip_str, ntohs(local_server_addr->sin_port), 
                     dst_server_ip_str, ntohs(dst_server->server->server_address.sin_port), 
@@ -340,8 +339,9 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
         if (specified_channel != NULL) {
             printf("server: %s leaves channel %s\n", user->username, specified_channel->name);
             remove_user_from_channel(specified_channel, user->username);
-            // specified_channel->count -= 1;
-            if (specified_channel->user_count == 0) {
+            /* specified_channel->server_count < 1 bc server may be acting as
+            important edge on channel path through servers */
+            if (specified_channel->user_count == 0 && specified_channel->server_count < 1) {
                 printf("server: removing empty channel %s\n", specified_channel->name);
                 remove_channel(channel_list, specified_channel->name);
             }
@@ -363,7 +363,7 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
                     src_ip_str, ntohs(packet_src->sin_port), specified_channel->name);
 
             // printf("BEFORE: local %d has these severs before unsubbing:\n", ntohs(local_server_addr->sin_port));
-            // ServerAndTime *current = specified_channel->server_time_list.head;
+            ServerAndTime *current = specified_channel->server_time_list.head;
             // while (current) {
             //     printf("\tserver %d\n", ntohs(current->server->server_address.sin_port));
             //     current = current->next;
@@ -371,12 +371,12 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
 
             unsub_server(specified_channel, packet_src, local_server_addr);
             
-            // printf("AFTER local %d has these severs after unsubbing:\n", ntohs(local_server_addr->sin_port));
-            // current = specified_channel->server_time_list.head;
-            // while (current) {
-            //     printf("\tserver %d\n", ntohs(current->server->server_address.sin_port));
-            //     current = current->next;
-            // }
+            printf("AFTER local %d has these severs after unsubbing:\n", ntohs(local_server_addr->sin_port));
+            current = specified_channel->server_time_list.head;
+            while (current) {
+                printf("\tserver %d\n", ntohs(current->server->server_address.sin_port));
+                current = current->next;
+            }
         }
     }
 }
@@ -398,7 +398,7 @@ void unsub_server(Channel *specified_channel, struct sockaddr_in *packet_src, st
     else {
         ServerAndTime *previous = specified_channel->server_time_list.head;
         ServerAndTime *current = specified_channel->server_time_list.head;
-        // TODO not actually unsubbing channel when it says it is
+
         while (current) {
             // Match based on port and address
             // if (ntohs(current->server->server_address.sin_port) == ntohs(packet_src->sin_port) &&
@@ -412,7 +412,7 @@ void unsub_server(Channel *specified_channel, struct sockaddr_in *packet_src, st
                     return;
                 }
                 // Unlink and free the matched server
-                previous->next = current->next; // TODO problem is we free curr == prev next, lose pointers
+                previous->next = current->next; 
                 free(current);
                 specified_channel->server_count -= 1;
                 return; // Exit after unsubscribing
