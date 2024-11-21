@@ -1,56 +1,72 @@
 
-client --- s1 --- s2
+join()
+    get user
+    get channel
 
-server code
+    if user_sent
+        print recv req join
+    if server_sent
+        print recv S2S join
 
-**TODO: need to put in non-blocking code so that i can check time of last join,
-and kick servers that haven't sent in 2 min
+    if channel exists
+        if user_sent
+            add user to channel, increment
+            send_join_adjacent()
 
-create linked list of sockaddr_in of adj servers
+        if server sent
+            if server_sent is in channels server:
+                server_sent.time update
+            else:
+                add server_send to channel
+    if channel does not exist
+        add channel, increment
+        get specified channel again
+        create packet_src_server
 
-channel_servers_map = {}
-while 1
-    // non blocking allows this
-    if one minute has passed:
-        for each channel this local server is subbed to 
-            for each non local-server subbed to channel
-                s2s send join channel
+        if user_sent
+            add user channel, increment
 
-    for each channel in channel_servers_map:
-        for each server, timestamp on channel
-            if curr_time - timestamp > 2:
-                remove server from channel
+        if server_sent
+            if server isn't subbed to channel
+                sub server to channel, increment
 
-    if recv
-        recv(socket)
-        ...
-        if client join channel or received join channel:
-            if server is subbed to channel:
-                do nothing
-            if server is not subbed to channel
-                sub to channel (add channel)
-                for every adjacent server
-                    channel_servers_map[channel].append((adjserver, timestamp))
-                    send s2s join channel
-            channel_servers_map[channel].append(src server, timestamp)
-            
+        sned_join_adjacent()
 
-        if client say or received s2s say channel:
-            say to all users on current server
-            for every server in channel_servers_map[channel] (except the server that sent s2s say):
-                send s2s say to server
-            if server has no users on say channel and no other channnels are on channel except for src of s2s say:
-                send leave channel to src of s2s say
-                leave channel locally
 
-        if s2s server_x leave channel
-            channel_servers_map[channel].remove(server_x)
-
+send_join_adjacent
+    for every adjacent server
+        flag = 0
+        for every server in channel
+            if channel server == adj server
+                flag = 1
+            if flag == 0 or if user sent
+                send join
+                sub adj serve to channel, increment
 
 say()
-    if this packet is a client say
-        populate text_say respectively
-    if this packet is a 2s2 say
-        populate text_say respectively
-    send say to all local users on channel
-    sends s2s say to all servrs subbed to channel
+    if user_sent
+        get user
+        build txt_say
+        build s2sSay
+    if server_sent
+        check ID
+        make ID list bigger if needed
+        build txt_say
+    get channel
+    if only packet src server is subbed to channel and 0 users are subbed to channel
+        send s2s leave chanenl to packet src
+        unsub packet src server
+        remove channel
+        return
+    for each local user in say channel
+        send txt_say
+    for each server subbed to say channel
+        sens s2s say
+
+leave()
+    if user_sent
+        remove user from channel
+    if server_sent
+        remove src_packet_server
+    if channel has 0 users and the only has one server subbed to channel
+        send leave channel to that one server

@@ -112,28 +112,31 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
                         ChannelList *channel_list, int s, char *buffer, 
                         ServerAddrList *server_addr_list, struct sockaddr_in *local_server_addr) {
     // Print the IP address
-    char ip_str[INET_ADDRSTRLEN]; // Buffer for the IP string
+    char src_ip_str[INET_ADDRSTRLEN]; // Buffer for the IP string
+    char local_ip_str[INET_ADDRSTRLEN];
     // converts IP from binary form (net byte order) to readable string
-    inet_ntop(AF_INET, &packet_src->sin_addr, ip_str, sizeof(ip_str));
+    inet_ntop(AF_INET, &packet_src->sin_addr, src_ip_str, sizeof(src_ip_str));
+    inet_ntop(AF_INET, &local_server_addr->sin_addr, local_ip_str, sizeof(local_ip_str));
 
     struct request *req = (struct request *)buffer;  // Initial cast to check req_type
     // printf("req: %d\n", req->req_type);
 
     if (req->req_type == REQ_LOGIN) {
         struct request_login *req_login = (struct request_login *)req; 
-        printf("server: %s login in\n", req_login->req_username);
-        add_user(user_list, ip_str, ntohs(packet_src->sin_port), req_login->req_username);
+        printf("%s:%d %s:%d recv Request login %s\n", local_ip_str, ntohs(local_server_addr->sin_port), 
+            src_ip_str, ntohs(packet_src->sin_port), req_login->req_username);
+        add_user(user_list, local_ip_str, ntohs(packet_src->sin_port), req_login->req_username);
     }
     else if (req->req_type == REQ_LOGOUT) {
-        logout(user_list, ip_str, packet_src, channel_list);
+        logout(user_list, local_ip_str, packet_src, channel_list);
 
     } else if (req->req_type == REQ_JOIN) {
-        join(req, user_list, ip_str, packet_src, channel_list, server_addr_list, s, local_server_addr);
+        join(req, user_list, local_ip_str, packet_src, channel_list, server_addr_list, s, local_server_addr);
     } else if (req->req_type == REQ_LEAVE || req->req_type == S2S_LEAVE) {
-        leave(req, user_list, ip_str, packet_src, channel_list, local_server_addr);
+        leave(req, user_list, local_ip_str, packet_src, channel_list, local_server_addr);
         
     } else if (req->req_type == REQ_SAY || req->req_type == S2S_SAY) {
-        say(req, s, user_list, ip_str, packet_src, channel_list, local_server_addr);
+        say(req, s, user_list, local_ip_str, packet_src, channel_list, local_server_addr);
 
     } else if (req->req_type == REQ_LIST) {
         printf("server: listing channels is not supported\n");
@@ -142,7 +145,7 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
     }
 
     // if (ntohs(local_server_addr->sin_port) == 4003) {
-    print_server_ports(channel_list, local_server_addr);
+    // print_server_ports(channel_list, local_server_addr);
     // }
 
     // print_channels(channel_list);
@@ -210,7 +213,8 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
     if (req->req_type == REQ_SAY) {
         struct request_say *req_say = (struct request_say *)req;
         User *user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
-        printf("server: %s sends say message in %s\n", user->username, req_say->req_channel);
+        printf("%s:%d %s:%d recv Request say %s %s \"%s\"\n", local_ip_str, ntohs(local_server_addr->sin_port), 
+                src_ip_str, ntohs(packet_src->sin_port), s2sSay->username, s2sSay->channel, s2sSay->text);
         txt_say.txt_type = 0;
         strcpy(txt_say.txt_channel, req_say->req_channel);
         strcpy(txt_say.txt_username, user->username);
@@ -247,7 +251,7 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         strncpy(txt_say.txt_username, s2sSay->username, USERNAME_MAX);
         strncpy(txt_say.txt_text, s2sSay->text, SAY_MAX);
 
-        printf("%s:%d %s:%d recv S2S say %s %s %s\n", local_ip_str, ntohs(local_server_addr->sin_port), 
+        printf("%s:%d %s:%d recv S2S say %s %s \"%s\"\n", local_ip_str, ntohs(local_server_addr->sin_port), 
                 src_ip_str, ntohs(packet_src->sin_port), s2sSay->username, s2sSay->channel, s2sSay->text);
     } 
 
@@ -272,7 +276,6 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         }
         // no local user to send too and no other servers to send too
         free(s2sSay);
-        
         // remove packet_src from channel
         // printf("\nlocal %d unsubbing nonlocal %d from %s\n\n", ntohs(local_server_addr->sin_port), ntohs(packet_src->sin_port), specified_channel->name);
         unsub_server(specified_channel, packet_src, local_server_addr); // TODneed to unsub from channel locally
@@ -308,7 +311,7 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
     while (dst_server) {
         if (ntohs(dst_server->server->server_address.sin_port) != ntohs(packet_src->sin_port)) {
             inet_ntop(AF_INET, &dst_server->server->server_address.sin_addr, dst_server_ip_str, INET_ADDRSTRLEN);
-            printf("%s:%d %s:%d send S2S say %s %s %s\n", local_ip_str, ntohs(local_server_addr->sin_port), 
+            printf("%s:%d %s:%d send S2S say %s %s \"%s\"\n", local_ip_str, ntohs(local_server_addr->sin_port), 
                     dst_server_ip_str, ntohs(dst_server->server->server_address.sin_port), 
                     s2sSay->username, s2sSay->channel, s2sSay->text);
             if (sendto(s, s2sSay, sizeof(*s2sSay), 0, (struct sockaddr *)&dst_server->server->server_address, sizeof(dst_server->server->server_address)) < 0) {
@@ -357,6 +360,7 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
             /* specified_channel->server_count < 1 bc server may be acting as
             important edge on channel path through servers */
             if (specified_channel->user_count == 0 && specified_channel->server_count < 1) {
+            // if (specified_channel->user_count == 0) {
                 printf("server: removing empty channel %s\n", specified_channel->name);
                 remove_channel(channel_list, specified_channel->name);
             }
@@ -439,11 +443,11 @@ void unsub_server(Channel *specified_channel, struct sockaddr_in *packet_src, st
     }
 }
 
-
 /*handles both client packets and server2server packets
 Tells the difference by checking if user exists in database or not*/
 void join(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, 
         ChannelList *channel_list, ServerAddrList *server_addr_list, int s, struct sockaddr_in *local_server_addr) {
+    
     struct request_join *req_join = (struct request_join *)req;
     User *user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
     
@@ -462,27 +466,10 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
                 src_ip_str, ntohs(packet_src->sin_port), user->username, req_join->req_channel);
     }
     // if packet src is a another server and the channel doesn't exist locally
-    if (!user && !specified_channel) {
+    // if (!user && !specified_channel) {
+    if (!user) {
         printf("%s:%d %s:%d recv S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
                 src_ip_str, ntohs(packet_src->sin_port), req_join->req_channel);
-    }
-
-    // PE !! placement might not get all the join, we'll see
-    // if packet src is a server and channel exists
-    if (!user && specified_channel) {
-        // Channel *channel = find_channel(channel_list, req_join->req_channel);
-        ServerAndTime *join_src_server = find_server(&specified_channel->server_time_list, packet_src);
-        // if server is already subbed to channel, update its time
-        if (join_src_server) {
-            join_src_server->time = time(NULL);
-        } else { // if channel exists, but server is not in it, add the serve to channel!
-            ServerAddr *new_server = (ServerAddr *)malloc(sizeof(ServerAddr));
-            memcpy(&new_server->server_address, packet_src, sizeof(struct sockaddr_in));
-            printf("%s:%d %s:%d recv S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
-                src_ip_str, ntohs(packet_src->sin_port), req_join->req_channel);
-            sub_server_to_channel(new_server, specified_channel); // is the problem here?
-            specified_channel->server_count += 1;
-        }
     }
 
     // if channel found
@@ -491,6 +478,23 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         if (user) {
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
             specified_channel->user_count += 1;
+            send_join_adjacent_servers(server_addr_list, specified_channel, local_ip_str, local_server_addr, s, req_join, user);
+        }
+        
+        if (!user) {
+            // Channel *channel = find_channel(channel_list, req_join->req_channel);
+            ServerAndTime *join_src_server = find_server(&specified_channel->server_time_list, packet_src);
+            // if server is already subbed to channel, update its time
+            if (join_src_server) {
+                join_src_server->time = time(NULL);
+            } else { // if channel exists, but server is not in it, add the serve to channel!
+                ServerAddr *new_server = (ServerAddr *)malloc(sizeof(ServerAddr));
+                memcpy(&new_server->server_address, packet_src, sizeof(struct sockaddr_in));
+                printf("%s:%d %s:%d recv S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+                    src_ip_str, ntohs(packet_src->sin_port), req_join->req_channel);
+                sub_server_to_channel(new_server, specified_channel); // is the problem here?
+                specified_channel->server_count += 1;
+            }
         }
     }
     // if channel not found
@@ -498,6 +502,7 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         // adding channel
         add_channel(channel_list, req_join->req_channel);
         channel_list->count += 1;
+        // not reduntant bc just added channel
         specified_channel = find_channel(channel_list, req_join->req_channel);
 
         // add src_packet server to channels subbed servers
@@ -505,61 +510,68 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         memcpy(&packet_src_server->server_address, packet_src, sizeof(struct sockaddr_in));
         packet_src_server->next = NULL;
         
-        // if server sent this s2sSay message sub serve to channel
-        if (!user) {
-            // if server isn't already subbed to channel
-            if (!find_server(&specified_channel->server_time_list, &packet_src_server->server_address)) {
-                sub_server_to_channel(packet_src_server, specified_channel);
-                specified_channel->server_count += 1;
-            }
-        }
         // if user does exist, add user to channel
         if (user) {
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
             specified_channel->user_count += 1;
         }
 
-        // send join to adjacent servers and add their server ID's to local channel
-        // for every adjacent server
-        ServerAddr *dst_server = server_addr_list->head;
-        while (dst_server) {
-            // printf("dst_server: %d\n", ntohs(dst_server->server_address.sin_port));
-            // for every adjacent server within specified channel
-
-            // check if dst server is in chanenls list of subbed servers
-            ServerAndTime *server_subbed_to_channel = specified_channel->server_time_list.head;
-            int dst_server_in_channels_servers_flag = 0;
-            while (server_subbed_to_channel) {
-                // printf("local %d checking if dst_server %d is subbed to channel\n", ntohs(local_server_addr->sin_port), ntohs(dst_server->server_address.sin_port));
-                if (ntohs(server_subbed_to_channel->server->server_address.sin_port) == ntohs(dst_server->server_address.sin_port)) {
-                    // printf("\tlocal server %d has server %d subbed to channel\n", ntohs(local_server_addr->sin_port), ntohs(dst_server->server_address.sin_port));
-                    dst_server_in_channels_servers_flag = 1;
-                    break;
-                }
-                server_subbed_to_channel = server_subbed_to_channel->next;
-            }
-            // if dst server is not in channels list of subbed servers, sub dst server and send join
-            // printf("dst_server_in_channels_servers_flag: %d\n", dst_server_in_channels_servers_flag);
-            if (!dst_server_in_channels_servers_flag) {
-                // printf("dst server %d is not in channels servers\n", ntohs(dst_server->server_address.sin_port));
-                // if server is not already subbed to specified channel
-                char curr_send_ip[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, &dst_server->server_address.sin_addr, curr_send_ip, INET_ADDRSTRLEN);
-                printf("%s:%d %s:%d send S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
-                    curr_send_ip, ntohs(dst_server->server_address.sin_port), req_join->req_channel);
-                if (sendto(s, req_join, sizeof(*req_join), 0, (struct sockaddr *)(&dst_server->server_address), sizeof(dst_server->server_address)) < 0) {
-                    perror("sendto error");
-                    exit(EXIT_FAILURE);
-                }
-                sub_server_to_channel(dst_server, specified_channel);
-                specified_channel->server_count += 1;
-            }
-            dst_server = dst_server->next;
+        // if server sent this s2sSay message sub serve to channel
+        if (!user) {
+            // if server isn't already subbed to channel
+            // if (!find_server(&specified_channel->server_time_list, &packet_src_server->server_address)) {
+            sub_server_to_channel(packet_src_server, specified_channel);
+            specified_channel->server_count += 1;
+            // }
         }
+        send_join_adjacent_servers(server_addr_list, specified_channel, local_ip_str, local_server_addr, s, req_join, user);
     }
-
     // print_server_ports(channel_list, local_server_addr);
     // printf("---------------------\n");
+}
+
+void send_join_adjacent_servers(ServerAddrList *server_addr_list, Channel *specified_channel, 
+    char *local_ip_str, struct sockaddr_in *local_server_addr, int s, struct request_join *req_join, User *user) {
+ // send join to adjacent servers and add their server ID's to local channel
+    // for every adjacent server
+    ServerAddr *dst_server = server_addr_list->head;
+    while (dst_server) {
+        // printf("dst_server: %d\n", ntohs(dst_server->server_address.sin_port));
+        // for every adjacent server within specified channel
+        
+        // check if dst server is in chanenls list of subbed servers
+        ServerAndTime *server_subbed_to_channel = specified_channel->server_time_list.head;
+        int dst_server_in_channels_servers_flag = 0;
+        while (server_subbed_to_channel) {
+            // printf("local %d checking if dst_server %d is subbed to channel\n", ntohs(local_server_addr->sin_port), ntohs(dst_server->server_address.sin_port));
+            if (ntohs(server_subbed_to_channel->server->server_address.sin_port) == ntohs(dst_server->server_address.sin_port)) {
+                // printf("\tlocal server %d has server %d subbed to channel\n", ntohs(local_server_addr->sin_port), ntohs(dst_server->server_address.sin_port));
+                dst_server_in_channels_servers_flag = 1;
+                break;
+            }
+            server_subbed_to_channel = server_subbed_to_channel->next;
+        }
+        // printf("local %d here\n", ntohs(local_server_addr->sin_port));
+
+        // if dst server is not in channels list of subbed servers or if a user sent this join ->sub dst server and send join
+        // printf("dst_server_in_channels_servers_flag: %d\n", dst_server_in_channels_servers_flag);
+
+        if (!dst_server_in_channels_servers_flag || user) {
+            // printf("dst server %d is not in channels servers\n", ntohs(dst_server->server_address.sin_port));
+            // if server is not already subbed to specified channel
+            char curr_send_ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &dst_server->server_address.sin_addr, curr_send_ip, INET_ADDRSTRLEN);
+            printf("%s:%d %s:%d send S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+                curr_send_ip, ntohs(dst_server->server_address.sin_port), req_join->req_channel);
+            if (sendto(s, req_join, sizeof(*req_join), 0, (struct sockaddr *)(&dst_server->server_address), sizeof(dst_server->server_address)) < 0) {
+                perror("sendto error");
+                exit(EXIT_FAILURE);
+            }
+            sub_server_to_channel(dst_server, specified_channel);
+            specified_channel->server_count += 1;
+        }
+        dst_server = dst_server->next;
+    }
 }
 
 void print_server_ports(ChannelList *channel_list, struct sockaddr_in *local_server_addr) {
@@ -573,7 +585,7 @@ void print_server_ports(ChannelList *channel_list, struct sockaddr_in *local_ser
     printf("local server: %d\n", ntohs(local_server_addr->sin_port));
     // Loop through each channel in the list
     while (current_channel != NULL) {
-        printf("\tChannel %s server count %d\n", current_channel->name, current_channel->server_count);
+        printf("\tlocal %d hannel %s server count %d\n", ntohs(local_server_addr->sin_port), current_channel->name, current_channel->server_count);
 
         // Get the server time list from the current channel
         ServerAndTime *current_server_time = current_channel->server_time_list.head;

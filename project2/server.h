@@ -15,6 +15,8 @@ typedef struct ServerAddrList {
     int count;
 } ServerAddrList;
 
+void send_join_adjacent_servers(ServerAddrList *server_addr_list, Channel *specified_channel, 
+    char *local_ip_str, struct sockaddr_in *local_server_addr, int s, struct request_join *req_join, User *user);
 void unsub_server(Channel *specified_channel, struct sockaddr_in *packet_src, struct sockaddr_in *local_server_addr);
 int check_id(long int id);
 void print_server_ports(ChannelList *channel_list, struct sockaddr_in *local_server_addr);
