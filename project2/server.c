@@ -10,6 +10,8 @@
 #include <sys/select.h> // select(), fd_set
 #include <errno.h> // errno and EINTR
 
+// TODO client logs in, no other clients, send say (2,4,6 leave), send say (5 SHOUlD leave but doesnt)
+
 long int *ID_LIST;
 int ID_COUNT = 0;
 int ID_LIST_SIZE = 128;
@@ -99,6 +101,8 @@ int main(int argc, char *argv[]) {
         }
         // printf("testing blocking\n");
         // TODO: need to test how old joins are
+        // after one minute passes, for each channel, for each server, send join channel
+        // for each channel, for each server, if time - join time > 2 min -> remove server
 
     }
     // free_adjacent_servers(&server_addr_list);
@@ -136,6 +140,11 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
     } else if (req->req_type == REQ_WHO) { 
         printf("server: who is in channel is not supported\n");
     }
+
+    // if (ntohs(local_server_addr->sin_port) == 4003) {
+    print_server_ports(channel_list, local_server_addr);
+    // }
+
     // print_channels(channel_list);
     // User *curr = user_list->head;
     // while (curr) {
@@ -263,6 +272,12 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         }
         // no local user to send too and no other servers to send too
         free(s2sSay);
+        
+        // remove packet_src from channel
+        // printf("\nlocal %d unsubbing nonlocal %d from %s\n\n", ntohs(local_server_addr->sin_port), ntohs(packet_src->sin_port), specified_channel->name);
+        unsub_server(specified_channel, packet_src, local_server_addr); // TODneed to unsub from channel locally
+        remove_channel(channel_list, specified_channel->name);
+
         return;
     }
 
@@ -363,7 +378,7 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
                     src_ip_str, ntohs(packet_src->sin_port), specified_channel->name);
 
             // printf("BEFORE: local %d has these severs before unsubbing:\n", ntohs(local_server_addr->sin_port));
-            ServerAndTime *current = specified_channel->server_time_list.head;
+            // ServerAndTime *current = specified_channel->server_time_list.head;
             // while (current) {
             //     printf("\tserver %d\n", ntohs(current->server->server_address.sin_port));
             //     current = current->next;
@@ -371,12 +386,12 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
 
             unsub_server(specified_channel, packet_src, local_server_addr);
             
-            printf("AFTER local %d has these severs after unsubbing:\n", ntohs(local_server_addr->sin_port));
-            current = specified_channel->server_time_list.head;
-            while (current) {
-                printf("\tserver %d\n", ntohs(current->server->server_address.sin_port));
-                current = current->next;
-            }
+            // printf("AFTER: local %d unsubs %d from %s and now has:\n", ntohs(local_server_addr->sin_port), ntohs(packet_src->sin_port), specified_channel->name);
+            // current = specified_channel->server_time_list.head;
+            // while (current) {
+            //     printf("\tserver %d\n", ntohs(current->server->server_address.sin_port));
+            //     current = current->next;
+            // }
         }
     }
 }
@@ -401,14 +416,14 @@ void unsub_server(Channel *specified_channel, struct sockaddr_in *packet_src, st
 
         while (current) {
             // Match based on port and address
-            // if (ntohs(current->server->server_address.sin_port) == ntohs(packet_src->sin_port) &&
-            //     current->server->server_address.sin_addr.s_addr == packet_src->sin_addr.s_addr) {
             // printf("local %d:\tif current %d ==  packet_src %d\n", ntohs(local_server_addr->sin_port), ntohs(current->server->server_address.sin_port), ntohs(packet_src->sin_port));
             if (ntohs(current->server->server_address.sin_port) == ntohs(packet_src->sin_port)) {
                 // printf("\t\tlocal %d unsubbing non-local %d from %s\n", ntohs(local_server_addr->sin_port), ntohs(current->server->server_address.sin_port), specified_channel->name);
 
                 if (current == specified_channel->server_time_list.head) {
                     specified_channel->server_time_list.head = current->next;
+                    specified_channel->server_count -= 1;
+                    free(current);
                     return;
                 }
                 // Unlink and free the matched server
@@ -460,6 +475,13 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
         // if server is already subbed to channel, update its time
         if (join_src_server) {
             join_src_server->time = time(NULL);
+        } else { // if channel exists, but server is not in it, add the serve to channel!
+            ServerAddr *new_server = (ServerAddr *)malloc(sizeof(ServerAddr));
+            memcpy(&new_server->server_address, packet_src, sizeof(struct sockaddr_in));
+            printf("%s:%d %s:%d recv S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+                src_ip_str, ntohs(packet_src->sin_port), req_join->req_channel);
+            sub_server_to_channel(new_server, specified_channel); // is the problem here?
+            specified_channel->server_count += 1;
         }
     }
 
@@ -491,8 +513,6 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
                 specified_channel->server_count += 1;
             }
         }
-
-
         // if user does exist, add user to channel
         if (user) {
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
@@ -545,7 +565,7 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
 void print_server_ports(ChannelList *channel_list, struct sockaddr_in *local_server_addr) {
     // Check if the channel list is valid
     if (channel_list == NULL || channel_list->head == NULL) {
-        printf("Channel list is empty.\n");
+        printf("local %d channel list is empty.\n", ntohs(local_server_addr->sin_port));
         return;
     }
 
@@ -553,30 +573,19 @@ void print_server_ports(ChannelList *channel_list, struct sockaddr_in *local_ser
     printf("local server: %d\n", ntohs(local_server_addr->sin_port));
     // Loop through each channel in the list
     while (current_channel != NULL) {
-        printf("\tChannel: %s\n", current_channel->name);
+        printf("\tChannel %s server count %d\n", current_channel->name, current_channel->server_count);
 
         // Get the server time list from the current channel
         ServerAndTime *current_server_time = current_channel->server_time_list.head;
 
         // Loop through each ServerAndTime entry
         while (current_server_time != NULL) {
-            // Extract the ServerAddr structure
-            ServerAddr *current_server = current_server_time->server;
 
-            // Loop through all ServerAddr nodes
-            while (current_server != NULL) {
-                // Print out the port number (using ntohs to handle network byte order)
-                int port = ntohs(current_server->server_address.sin_port);
-                printf("\t\tServer Port: %d\n", port);
-
-                // Move to the next ServerAddr in the linked list
-                current_server = current_server->next;
-            }
-
+            int port = ntohs(current_server_time->server->server_address.sin_port);
+            printf("\t\tlocal %d Server Port: %d\n", ntohs(local_server_addr->sin_port), port);
             // Move to the next ServerAndTime entry
             current_server_time = current_server_time->next;
         }
-
         // Move to the next channel in the list
         current_channel = current_channel->next;
     }
