@@ -16,7 +16,7 @@
 */
 
 /*Problems
-- user 1 join Commmon, whole net joins common, user2 joins diff server and has to sumbit join
+- leaving non existent channel segs
 */
 
 long int *ID_LIST;
@@ -387,18 +387,15 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
         User *user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
         specified_channel = find_channel(channel_list, req_leave->req_channel);
         if (specified_channel != NULL) {
-            printf("%s:%d %s:%d recv Request Leave %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
-                    src_ip_str, ntohs(packet_src->sin_port), specified_channel->name);
-            /* specified_channel->server_count < 1 bc server may be acting as
-            important edge on channel path through servers */
-            // if (specified_channel->user_count == 0 && specified_channel->server_count < 1) {
-            // // if (specified_channel->user_count == 0) {
-            //     printf("server: removing empty channel %s\n", specified_channel->name);
-            //     remove_channel(channel_list, specified_channel->name);
-            // }
+            // printf("%s:%d %s:%d recv Request Leave %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+            //         src_ip_str, ntohs(packet_src->sin_port), specified_channel->name);
+            printf("%s:%d %s leaves channel %s\n", local_ip_str, ntohs(local_server_addr->sin_port), user->username, specified_channel->name);
+            remove_user_from_channel(specified_channel, user->username);
+
         } else {
             printf("server: %s trying to leave non-existent channel %s\n", user->username, req_leave->req_channel);
         }
+
         // make s2s leave packet to be sent to other servers
         struct s2s_leave s2sLeave_base;
         s2sLeave_base.req_type = S2S_LEAVE;
@@ -432,20 +429,21 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
     }
 
     // TODO PE 
-    if (specified_channel->user_count == 0 && specified_channel->server_count <= 1) {
+    // if (specified_channel->user_count == 0 && specified_channel->server_count <= 1) {
 
-        ServerAndTime *dst_server = specified_channel->server_time_list.head;
-        printf("%s:%d %s:%d send S2S Leave %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
-                src_ip_str, ntohs(dst_server->server->server_address.sin_port), specified_channel->name);
-        if (sendto(s, s2sLeave, sizeof(*s2sLeave), 0, (struct sockaddr *)&dst_server->server->server_address, sizeof(dst_server->server->server_address)) < 0) {
-            perror("sendto error");
-            exit(EXIT_FAILURE);
-        }
-        //TODO sending leave to only server connected
-        // need to unsub server
-        unsub_server(specified_channel, &dst_server->server->server_address, local_server_addr);
-        remove_channel(channel_list, specified_channel->name);
-    }
+    //     ServerAndTime *dst_server = specified_channel->server_time_list.head;
+    //     printf("%s:%d %s:%d send S2S Leave %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+    //             src_ip_str, ntohs(dst_server->server->server_address.sin_port), specified_channel->name);
+    //     if (sendto(s, s2sLeave, sizeof(*s2sLeave), 0, (struct sockaddr *)&dst_server->server->server_address, sizeof(dst_server->server->server_address)) < 0) {
+    //         perror("sendto error");
+    //         exit(EXIT_FAILURE);
+    //     }
+    //     //TODO sending leave to only server connected
+    //     // need to unsub server
+    //     unsub_server(specified_channel, &dst_server->server->server_address, local_server_addr);
+    //     printf("%s:%d removing empty channel %s\n", local_ip_str, ntohs(local_server_addr->sin_port), specified_channel->name);
+    //     remove_channel(channel_list, specified_channel->name);
+    // }
 }
 
 void unsub_server(Channel *specified_channel, struct sockaddr_in *server_removing, struct sockaddr_in *local_server_addr) {
