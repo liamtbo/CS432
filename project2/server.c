@@ -222,10 +222,11 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
     inet_ntop(AF_INET, &local_server_addr->sin_addr, local_ip_str, INET_ADDRSTRLEN);
     inet_ntop(AF_INET, &packet_src->sin_addr, src_ip_str, INET_ADDRSTRLEN);
 
+    User *user = NULL;
     // if packet_src is from user
     if (req->req_type == REQ_SAY) {
         struct request_say *req_say = (struct request_say *)req;
-        User *user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
+        user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
         printf("%s:%d %s:%d recv Request say %s %s \"%s\"\n", local_ip_str, ntohs(local_server_addr->sin_port), 
                 src_ip_str, ntohs(packet_src->sin_port), user->username, req_say->req_channel, req_say->req_text);
         txt_say.txt_type = 0;
@@ -297,6 +298,7 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         return;
     }
 
+    // sending txt to users
     UserList channels_users = specified_channel->users;
     User *current_user = channels_users.head;
     int original_packet_src = packet_src->sin_port;
@@ -307,6 +309,18 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
             printf("Error: problem converting str to net byte order"), fflush(stdout);
             exit(EXIT_FAILURE);
         }
+
+        // if message from user { if user sending say isn't the dst { print }}
+        if (user) {
+            if (strcmp(current_user->username, user->username) != 0) {
+                printf("%s:%d %s:%d send Say message \"%s\" in %s from %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+                        current_user->ip, current_user->port, txt_say.txt_text, specified_channel->name, current_user->username);
+            }    
+        } else {
+            printf("%s:%d %s:%d send Say message \"%s\" in %s from %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+                    current_user->ip, current_user->port, txt_say.txt_text, specified_channel->name, current_user->username);
+        }
+
         if (sendto(s, &txt_say, sizeof(txt_say), 0, (struct sockaddr *)packet_src, sizeof(*packet_src)) < 0) {
             perror("sendto error");
             exit(EXIT_FAILURE);
@@ -314,9 +328,6 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         current_user = current_user->next;
     }
     packet_src->sin_port = original_packet_src;
-    // printf("calling say:\n");
-    // print_server_ports(channel_list, local_server_addr);
-    // printf("---------------------\n");
 
     // send s2s say message
     ServerAndTime *dst_server = specified_channel->server_time_list.head;
