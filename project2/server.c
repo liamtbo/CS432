@@ -157,7 +157,7 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
     } else if (req->req_type == REQ_JOIN) {
         join(req, user_list, local_ip_str, packet_src, channel_list, server_addr_list, s, local_server_addr);
     } else if (req->req_type == REQ_LEAVE || req->req_type == S2S_LEAVE) {
-        leave(req, user_list, local_ip_str, packet_src, channel_list, local_server_addr, s);
+        leave(req, user_list, local_ip_str, packet_src, channel_list, local_server_addr);
         
     } else if (req->req_type == REQ_SAY || req->req_type == S2S_SAY) {
         say(req, s, user_list, local_ip_str, packet_src, channel_list, local_server_addr);
@@ -302,7 +302,7 @@ void say(struct request *req, int s, UserList *user_list, char *ip_str, struct s
         free(s2sSay);
         // remove packet_src from channel
         // printf("\nlocal %d unsubbing nonlocal %d from %s\n\n", ntohs(local_server_addr->sin_port), ntohs(packet_src->sin_port), specified_channel->name);
-        unsub_server(specified_channel, packet_src, local_server_addr); // TODneed to unsub from channel locally
+        unsub_server(specified_channel, packet_src); // TODneed to unsub from channel locally
         remove_channel(channel_list, specified_channel->name);
 
         return;
@@ -383,7 +383,7 @@ unsigned int get_urandom() {
     return random_value;
 }
 
-void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list, struct sockaddr_in *local_server_addr, int s) {
+void leave(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, ChannelList *channel_list, struct sockaddr_in *local_server_addr) {
     
     Channel *specified_channel;
     struct s2s_leave *s2sLeave;
@@ -427,7 +427,7 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
             //     current = current->next;
             // }
 
-            unsub_server(specified_channel, packet_src, local_server_addr);
+            unsub_server(specified_channel, packet_src);
             
             // printf("AFTER: local %d unsubs %d from %s and now has:\n", ntohs(local_server_addr->sin_port), ntohs(packet_src->sin_port), specified_channel->name);
             // current = specified_channel->server_time_list.head;
@@ -456,7 +456,7 @@ void leave(struct request *req, UserList *user_list, char *ip_str, struct sockad
     // }
 }
 
-void unsub_server(Channel *specified_channel, struct sockaddr_in *server_removing, struct sockaddr_in *local_server_addr) {
+void unsub_server(Channel *specified_channel, struct sockaddr_in *server_removing) {
     // printf("local %d server count %d\n", ntohs(local_server_addr->sin_port), specified_channel->server_count);
 
     // If there are no servers, nothing to do
@@ -581,14 +581,14 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
             specified_channel->server_count += 1;
             // }
         }
-        send_join_adjacent_servers(server_addr_list, specified_channel, local_ip_str, local_server_addr, s, req_join, user);
+        send_join_adjacent_servers(server_addr_list, specified_channel, local_ip_str, local_server_addr, s, req_join);
     }
     // print_server_ports(channel_list, local_server_addr);
     // printf("---------------------\n");
 }
 
 void send_join_adjacent_servers(ServerAddrList *server_addr_list, Channel *specified_channel, 
-    char *local_ip_str, struct sockaddr_in *local_server_addr, int s, struct request_join *req_join, User *user) {
+    char *local_ip_str, struct sockaddr_in *local_server_addr, int s, struct request_join *req_join) {
  // send join to adjacent servers and add their server ID's to local channel
     // for every adjacent server
     ServerAddr *dst_server = server_addr_list->head;
