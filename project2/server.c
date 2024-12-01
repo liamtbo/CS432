@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
 
     ChannelList channel_list = {NULL};
     UserList user_list = {NULL};
-    time_t server_start_time = time(NULL) % 10;
+    time_t server_start_time = time(NULL);
     // printf("start time %ld\n", server_start_time);
     fd_set read_fds;
     struct timeval timeout;
@@ -108,15 +108,17 @@ int main(int argc, char *argv[]) {
                 printf("Waiting for packet_src data...\n");
             }
         }
-        time_t current_time = time(NULL) % 10;
-        printf("checking time: current = %ld and starat = %ld\n", current_time, server_start_time);
-        // printf("curr time %ld\n", current_time);
-        if (current_time == server_start_time && one_min_timeout_flag) {
+
+        time_t current_time = time(NULL);
+        if (current_time % 60 == server_start_time % 60 && one_min_timeout_flag && current_time != server_start_time) {
             // resend joins
             one_minute_timeout_join(&channel_list, &local_server_addr, s);
             one_min_timeout_flag = 0;
         }
-        if (current_time != server_start_time) {
+        // flag is needed bc it only allows one join to be sent per 60 seconds
+        /* if it's not there 4000 sends one_min_join to 4001, 4001 onesec blocking ends bc it has recv bytes, processes, then 4001 sends its own one_min_join to 4000,
+        4000 stops one sec blocking, processes, then it's still within that original one seconds so it sends one_min_join again*/
+        if (current_time % 60 != server_start_time % 60) {
             one_min_timeout_flag = 1;
         }
 
@@ -134,7 +136,6 @@ int main(int argc, char *argv[]) {
 void process_requests(struct sockaddr_in *packet_src, UserList *user_list, 
                         ChannelList *channel_list, int s, char *buffer, 
                         ServerAddrList *server_addr_list, struct sockaddr_in *local_server_addr) {
-    printf("recevied user or s2s req");
     // Print the IP address
     char src_ip_str[INET_ADDRSTRLEN]; // Buffer for the IP string
     char local_ip_str[INET_ADDRSTRLEN];
@@ -166,7 +167,6 @@ void process_requests(struct sockaddr_in *packet_src, UserList *user_list,
     } else if (req->req_type == REQ_WHO) { 
         printf("server: who is in channel is not supported\n");
     }
-    printf("exiting process reqs\n");
     // if (ntohs(local_server_addr->sin_port) == 4000) {
     //     print_server_ports(channel_list, local_server_addr);
     // }
@@ -503,7 +503,6 @@ void unsub_server(Channel *specified_channel, struct sockaddr_in *server_removin
 Tells the difference by checking if user exists in database or not*/
 void join(struct request *req, UserList *user_list, char *ip_str, struct sockaddr_in *packet_src, 
         ChannelList *channel_list, ServerAddrList *server_addr_list, int s, struct sockaddr_in *local_server_addr) {
-    printf("recevied req or s2s join\n");
     // exit(EXIT_FAILURE);
     struct request_join *req_join = (struct request_join *)req;
     User *user = find_user_by_ip_port(user_list, ip_str, ntohs(packet_src->sin_port));
@@ -533,21 +532,17 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
     // exit(EXIT_FAILURE);
     // if channel found
     if (specified_channel) {
-        printf("\tif specified channel\n");
         // if user doesn't exist, packet_src is another server
         if (user) {
-            printf("\t\tif user\n");
             add_user_to_channel(specified_channel, ip_str, ntohs(packet_src->sin_port), user->username);
             specified_channel->user_count += 1;
             // send_join_adjacent_servers(server_addr_list, specified_channel, local_ip_str, local_server_addr, s, req_join, user);
         }
         if (!user) {
-            printf("\t\tif !user\n");
             // Channel *channel = find_channel(channel_list, req_join->req_channel);
             ServerAndTime *join_src_server = find_server(&specified_channel->server_time_list, packet_src);
             // if server is already subbed to channel, update its time
             if (join_src_server) {
-                printf("\t\t\tif join_src_server\n");
                 join_src_server->time = time(NULL);
             } else { // if channel exists, but server is not in it, add the serve to channel!
                 ServerAddr *new_server = (ServerAddr *)malloc(sizeof(ServerAddr));
@@ -561,7 +556,6 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
     }
     // if channel not found
     else {
-        printf("\tif not specified channel\n");
         // adding channel
         add_channel(channel_list, req_join->req_channel);
         channel_list->count += 1;
@@ -591,7 +585,6 @@ void join(struct request *req, UserList *user_list, char *ip_str, struct sockadd
     }
     // print_server_ports(channel_list, local_server_addr);
     // printf("---------------------\n");
-    printf("exiting join function\n");
 }
 
 void send_join_adjacent_servers(ServerAddrList *server_addr_list, Channel *specified_channel, 
@@ -688,7 +681,7 @@ void one_minute_timeout_join(ChannelList *channel_list, struct sockaddr_in *loca
         while (current_server_time != NULL) {
 
             inet_ntop(AF_INET, &current_server_time->server->server_address.sin_addr, dst_ip_str, INET_ADDRSTRLEN);
-            printf("inside one min: %s:%d %s:%d send S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
+            printf("%s:%d %s:%d send S2S Join %s\n", local_ip_str, ntohs(local_server_addr->sin_port),
                     dst_ip_str, ntohs(current_server_time->server->server_address.sin_port), current_channel->name);
 
             if (sendto(s, &s2sJoin, sizeof(s2sJoin), 0, (struct sockaddr *)&current_server_time->server->server_address, sizeof(current_server_time->server->server_address)) < 0) {
@@ -699,7 +692,6 @@ void one_minute_timeout_join(ChannelList *channel_list, struct sockaddr_in *loca
         }
         current_channel = current_channel->next;
     }
-    printf("finished one_minute function\n");
 }
 
 
